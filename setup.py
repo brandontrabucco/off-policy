@@ -6,7 +6,8 @@ REQUIRED_PACKAGES = ['tensorflow==2.2',
                      'tensorflow-probability',
                      'gym[mujoco]',
                      'numpy',
-                     'dm-tree']
+                     'dm-tree',
+                     'scikit-video']
 
 
 PACKAGES = [package

@@ -57,6 +57,7 @@ class SAC(object):
         self.update_target(tf.constant(1.0))
         self.logger = logger
 
+    @tf.function
     def update_target(self, tau):
         """Perform a soft update to the parameters of the target critic using
         the value provided for the soft target tau
@@ -73,6 +74,7 @@ class SAC(object):
                 target_weight.assign(
                     tau * source_weight + (1.0 - tau) * target_weight)
 
+    @tf.function
     def bellman_targets(self, reward, done, next_obs):
         """Calculate the bellman target values for the q function that
         will be regressed to using gradient descent
@@ -101,6 +103,7 @@ class SAC(object):
         return tf.stop_gradient(
             next_q + self.reward_scale * reward)
 
+    @tf.function
     def update_q(self, obs, act, reward, done, next_obs):
         """Perform a single gradient descent update on the q functions
         using a batch of data sampled from a replay buffer
@@ -138,6 +141,7 @@ class SAC(object):
             optim.apply_gradients(zip(tape.gradient(
                 q_loss, q.trainable_variables), q.trainable_variables))
 
+    @tf.function
     def update_policy(self, obs):
         """Perform a single gradient descent update on the policy
         using a batch of data sampled from a replay buffer
@@ -171,6 +175,7 @@ class SAC(object):
         self.policy_optimizer.apply_gradients(zip(
             policy_gradients, self.policy.trainable_variables))
 
+    @tf.function
     def update_alpha(self, obs):
         """Perform a single gradient descent update on alpha
         using a batch of data sampled from a replay buffer
@@ -199,6 +204,7 @@ class SAC(object):
         self.alpha_optimizer.apply_gradients(zip(
             tape.gradient(alpha_loss, [self.log_alpha]), [self.log_alpha]))
 
+    @tf.function
     def train(self, iteration, obs, act, reward, done, next_obs):
         """Perform a single gradient descent update on the agent
         using a batch of data sampled from a replay buffer

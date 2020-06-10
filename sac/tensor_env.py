@@ -77,13 +77,15 @@ class TensorEnv(gym.Env):
         self.wrapped_env = wrapped_env
         self.observation_space = Box(self.wrapped_env.observation_space.low,
                                      self.wrapped_env.observation_space.high)
+        self.context_space = Box(self.wrapped_env.context_space.low,
+                                 self.wrapped_env.context_space.high)
         self.action_space = Box(self.wrapped_env.action_space.low,
                                 self.wrapped_env.action_space.high)
         self.reward_range = tf.convert_to_tensor(
             self.wrapped_env.reward_range)
 
     def _step(self, action):
-        return self.wrapped_env.step(action)[:3]
+        return self.wrapped_env.step(action)[:4]
 
     @tf.function
     def step(self, action):
@@ -96,12 +98,13 @@ class TensorEnv(gym.Env):
             a tensor that represents a single action sampled from an agent
         """
 
-        obs, r, d = tf.py_function(
-            self._step, [action], [tf.float32, tf.float32, tf.bool])
+        obs, ctx, r, d = tf.py_function(self._step, [
+            action], [tf.float32, tf.float32, tf.float32, tf.bool])
         obs.set_shape(self.observation_space.shape)
+        ctx.set_shape(self.context_space.shape)
         r.set_shape(tf.TensorShape([1]))
         d.set_shape(tf.TensorShape([1]))
-        return obs, r, d
+        return obs, ctx, r, d
 
     def _reset(self):
         return self.wrapped_env.reset()
@@ -112,9 +115,10 @@ class TensorEnv(gym.Env):
         the initial observation
         """
 
-        obs = tf.py_function(self._reset, [], tf.float32)
+        obs, ctx = tf.py_function(self._reset, [], [tf.float32, tf.float32])
         obs.set_shape(self.observation_space.shape)
-        return obs
+        ctx.set_shape(self.context_space.shape)
+        return obs, ctx
 
     def _render(self):
         return self.wrapped_env.render(mode='rgb_array').astype(float)

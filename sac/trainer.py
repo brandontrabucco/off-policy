@@ -9,6 +9,7 @@ class Trainer(object):
                  buffer,
                  algorithm,
                  logger,
+                 video_saver,
                  warm_up_steps=5000,
                  batch_size=256):
         """Create a training interface for an rl agent using
@@ -33,8 +34,30 @@ class Trainer(object):
         self.buffer = buffer
         self.algorithm = algorithm
         self.logger = logger
+        self.video_saver = video_saver
         self.warm_up_steps = warm_up_steps
         self.batch_size = batch_size
+
+    @tf.function
+    def render(self, number):
+        """Evaluate the current policy by collecting data over many episodes
+        and returning the sum of rewards
+
+        Args:
+
+        num_paths: tf.dtypes.int32
+            the number of episodes to collect when evaluating
+        """
+
+        obs, ctx = self.env.reset()
+        done = tf.constant([False])
+        self.video_saver.open(number)
+        while tf.logical_not(done):
+            act = self.policy([
+                obs[tf.newaxis], ctx[tf.newaxis]]).mean()[0]
+            obs, ctx, reward, done = self.env.step(act)
+            self.video_saver.write_frame(self.env.render())
+        self.video_saver.close()
 
     @tf.function
     def evaluate(self, num_paths):
@@ -47,21 +70,27 @@ class Trainer(object):
             the number of episodes to collect when evaluating
         """
 
-        obs = self.env.reset()
+        obs, ctx = self.env.reset()
         array = tf.TensorArray(tf.float32, size=num_paths)
-        paths = tf.constant(0)
+        video = tf.TensorArray(tf.float32, size=num_paths)
+
+        i = tf.constant(0)
         path_return = tf.constant([0.0])
 
-        while tf.less(paths, num_paths):
+        while tf.less(i, num_paths):
 
-            act = self.policy([obs[tf.newaxis]]).mean()[0]
-            obs, reward, done = self.env.step(act)
+            act = self.policy([
+                obs[tf.newaxis], ctx[tf.newaxis]]).mean()[0]
+
+            obs, ctx, reward, done = self.env.step(act)
+            video = video.write(i, self.env.render())
             path_return += reward
 
             if done:
-                obs = self.env.reset()
-                array = array.write(paths, path_return)
-                paths = paths + 1
+                obs, ctx = self.env.reset()
+                array = array.write(i, path_return)
+
+                i = i + 1
                 path_return = tf.constant([0.0])
 
         return array.stack()
@@ -77,25 +106,36 @@ class Trainer(object):
             the number of steps to collect when training
         """
 
-        iteration = tf.constant(0)
-        obs = self.env.reset()
+        obs, ctx = self.env.reset()
+        i = tf.constant(0)
 
-        while tf.less(iteration, num_iterations):
+        while tf.less(i, num_iterations):
 
-            iteration = iteration + 1
-            self.logger.set_step(tf.cast(iteration, tf.dtypes.int64))
+            i = i + 1
+            self.logger.set_step(tf.cast(i, tf.dtypes.int64))
+            if tf.greater(i, self.warm_up_steps):
 
-            if tf.greater(iteration, self.warm_up_steps):
-                act = self.policy([obs[tf.newaxis]]).sample()[0]
+                act = self.policy([
+                    obs[tf.newaxis], ctx[tf.newaxis]]).sample()[0]
+
+                (obs_s, ctx_s, act_s, reward_s, done_s, next_obs_s,
+                 next_ctx_s) = self.buffer.sample(self.batch_size)
+
                 self.algorithm.train(
-                    iteration, *self.buffer.sample(self.batch_size))
+                    i, tf.concat([obs_s, ctx_s], axis=-1), act_s, reward_s,
+                    done_s, tf.concat([next_obs_s, next_ctx_s], axis=-1))
+
             else:
                 act = self.env.action_space.sample()
 
-            next_obs, reward, done = self.env.step(act)
-            self.buffer.insert(obs, act, reward, done)
-            obs = self.env.reset() if done else next_obs
+            next_obs, next_ctx, reward, done = self.env.step(act)
+            self.buffer.insert(obs, ctx, act, reward, done)
 
-            if iteration % 1000 == 0:
-                self.logger.set_step(tf.cast(iteration, tf.dtypes.int64))
+            obs, ctx = next_obs, next_ctx
+            if done:
+                obs, ctx = self.env.reset()
+
+            if i % 1000 == 0:
+                self.logger.set_step(tf.cast(i, tf.dtypes.int64))
                 self.logger.record("return", self.evaluate(10))
+                self.render(i)
