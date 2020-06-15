@@ -66,13 +66,11 @@ class FeedForwardTanhGaussian(tf.keras.Sequential):
 
         def make_distribution_fn(t):
             loc = t[..., :output_size]
-            scale_diag = tf.exp(t[..., output_size:])
-            tanh = tfp.bijectors.Tanh()
-            tanh._is_constant_jacobian = True  # this is a hack
+            scale_diag = tf.math.softplus(t[..., output_size:])
             return tfpd.TransformedDistribution(
                 tfpd.MultivariateNormalDiag(loc=loc, scale_diag=scale_diag),
                 tfp.bijectors.Chain([
-                    tanh,
+                    tfp.bijectors.Tanh(),
                     tfp.bijectors.Scale(scale),
                     tfp.bijectors.Shift(shift),
                 ]))

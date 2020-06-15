@@ -1,5 +1,6 @@
 import tensorflow as tf
 import tensorflow_probability as tfp
+import numpy as np
 import gym
 
 
@@ -85,7 +86,12 @@ class TensorEnv(gym.Env):
             self.wrapped_env.reward_range)
 
     def _step(self, action):
-        return self.wrapped_env.step(action)[:4]
+        obs, ctx, r, d = self.wrapped_env.step(action)[:4]
+        obs = obs.astype(np.float32)
+        ctx = ctx.astype(np.float32)
+        r = np.array([float(r)], np.float32)
+        d = np.array([bool(d)], np.bool)
+        return obs, ctx, r, d
 
     @tf.function
     def step(self, action):
@@ -98,7 +104,7 @@ class TensorEnv(gym.Env):
             a tensor that represents a single action sampled from an agent
         """
 
-        obs, ctx, r, d = tf.py_function(self._step, [
+        obs, ctx, r, d = tf.numpy_function(self._step, [
             action], [tf.float32, tf.float32, tf.float32, tf.bool])
         obs.set_shape(self.observation_space.shape)
         ctx.set_shape(self.context_space.shape)
@@ -107,7 +113,10 @@ class TensorEnv(gym.Env):
         return obs, ctx, r, d
 
     def _reset(self):
-        return self.wrapped_env.reset()
+        obs, ctx = self.wrapped_env.reset()
+        obs = obs.astype(np.float32)
+        ctx = ctx.astype(np.float32)
+        return obs, ctx
 
     @tf.function
     def reset(self):
@@ -115,17 +124,19 @@ class TensorEnv(gym.Env):
         the initial observation
         """
 
-        obs, ctx = tf.py_function(self._reset, [], [tf.float32, tf.float32])
+        obs, ctx = tf.numpy_function(self._reset, [], [tf.float32, tf.float32])
         obs.set_shape(self.observation_space.shape)
         ctx.set_shape(self.context_space.shape)
         return obs, ctx
 
     def _render(self):
-        return self.wrapped_env.render(mode='rgb_array').astype(float)
+        return self.wrapped_env.render(mode='rgb_array',
+                                       height=32,
+                                       width=32).astype(np.float32)
 
     @tf.function
     def render(self):
         """Create an in-graph operations that renders a gym.Env and returns
         the image pixels in a tensor
         """
-        return tf.py_function(self._render, [], tf.float32)
+        return tf.numpy_function(self._render, [], tf.float32)

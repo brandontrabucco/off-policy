@@ -1,3 +1,4 @@
+from skvideo.io import vwrite
 import tensorflow as tf
 
 
@@ -9,7 +10,6 @@ class Trainer(object):
                  buffer,
                  algorithm,
                  logger,
-                 video_saver,
                  warm_up_steps=5000,
                  batch_size=256):
         """Create a training interface for an rl agent using
@@ -34,11 +34,16 @@ class Trainer(object):
         self.buffer = buffer
         self.algorithm = algorithm
         self.logger = logger
-        self.video_saver = video_saver
         self.warm_up_steps = warm_up_steps
         self.batch_size = batch_size
 
-    @tf.function
+    def _save_vid(self, name, vid):
+        print("saving", name)
+        vwrite(name.decode("utf-8"), vid)
+
+    def save_vid(self, name, vid):
+        tf.numpy_function(self._save_vid, [name, vid], [])
+
     def render(self, number):
         """Evaluate the current policy by collecting data over many episodes
         and returning the sum of rewards
@@ -50,16 +55,22 @@ class Trainer(object):
         """
 
         obs, ctx = self.env.reset()
+        array = tf.TensorArray(dtype=tf.float32, size=0, dynamic_size=True)
+        i = tf.constant(0)
         done = tf.constant([False])
-        self.video_saver.open(number)
-        while tf.logical_not(done):
-            act = self.policy([
-                obs[tf.newaxis], ctx[tf.newaxis]]).mean()[0]
-            obs, ctx, reward, done = self.env.step(act)
-            self.video_saver.write_frame(self.env.render())
-        self.video_saver.close()
+        array = array.write(i, self.env.render() * 255)
 
-    @tf.function
+        while tf.logical_not(done):
+            i = i + 1
+
+            act = self.policy([
+                obs[tf.newaxis], ctx[tf.newaxis]]).sample()[0]
+
+            obs, ctx, reward, done = self.env.step(act)
+            array = array.write(i, self.env.render() * 255)
+            i = i + 1
+        self.save_vid(tf.constant("a.wmv"), array.stack())
+
     def evaluate(self, num_paths):
         """Evaluate the current policy by collecting data over many episodes
         and returning the sum of rewards
@@ -72,7 +83,6 @@ class Trainer(object):
 
         obs, ctx = self.env.reset()
         array = tf.TensorArray(tf.float32, size=num_paths)
-        video = tf.TensorArray(tf.float32, size=num_paths)
 
         i = tf.constant(0)
         path_return = tf.constant([0.0])
@@ -80,10 +90,9 @@ class Trainer(object):
         while tf.less(i, num_paths):
 
             act = self.policy([
-                obs[tf.newaxis], ctx[tf.newaxis]]).mean()[0]
+                obs[tf.newaxis], ctx[tf.newaxis]]).sample()[0]
 
             obs, ctx, reward, done = self.env.step(act)
-            video = video.write(i, self.env.render())
             path_return += reward
 
             if done:
@@ -95,7 +104,6 @@ class Trainer(object):
 
         return array.stack()
 
-    @tf.function
     def train(self, num_iterations):
         """Train the current policy by collecting data over many episodes
         and running the provided rl algorithm
@@ -138,4 +146,4 @@ class Trainer(object):
             if i % 1000 == 0:
                 self.logger.set_step(tf.cast(i, tf.dtypes.int64))
                 self.logger.record("return", self.evaluate(10))
-                self.render(i)
+                #self.render(i)
