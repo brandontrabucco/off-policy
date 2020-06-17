@@ -3,7 +3,7 @@ import tensorflow as tf
 
 class ReplayBuffer(object):
 
-    def __init__(self, capacity, obs_size, ctx_size, act_size):
+    def __init__(self, capacity, obs_size, act_size):
         """A static graph replay buffer that stores samples collected
         from a policy in an environment
 
@@ -22,12 +22,10 @@ class ReplayBuffer(object):
         super(ReplayBuffer, self).__init__()
         self.capacity = capacity
         self.obs_size = obs_size
-        self.ctx_size = ctx_size
         self.act_size = act_size
 
         # prepare a storage memory for samples
         self.obs = tf.Variable(tf.zeros([capacity, obs_size], tf.dtypes.float32))
-        self.ctx = tf.Variable(tf.zeros([capacity, ctx_size], tf.dtypes.float32))
         self.act = tf.Variable(tf.zeros([capacity, act_size], tf.dtypes.float32))
         self.reward = tf.Variable(tf.zeros([capacity, 1], tf.dtypes.float32))
         self.done = tf.Variable(tf.zeros([capacity, 1], tf.dtypes.bool))
@@ -37,7 +35,7 @@ class ReplayBuffer(object):
         self.size = tf.Variable(tf.constant(0))
 
     @tf.function
-    def insert(self, obs, ctx, act, reward, done):
+    def insert(self, obs, act, reward, done):
         """Insert a single sample collected from the environment into
         the replay buffer at the current head position
 
@@ -45,8 +43,6 @@ class ReplayBuffer(object):
 
         obs: tf.dtypes.float32
             a tensor that is shaped like [obs_size] containing observations
-        ctx: tf.dtypes.float32
-            a tensor that is shaped like [ctx_size] containing context
         act: tf.dtypes.float32
             a tensor that is shaped like [act_size] containing actions
         reward: tf.dtypes.float32
@@ -61,13 +57,6 @@ class ReplayBuffer(object):
             tf.reshape(tf.range(self.obs_size), [self.obs_size, 1])], 1)
         self.obs.assign(tf.tensor_scatter_nd_update(
             self.obs, location, tf.cast(obs, tf.dtypes.float32)))
-
-        # insert samples at the position of the current head
-        location = tf.concat([
-            tf.tile(tf.reshape(self.head, [1, 1]), [self.ctx_size, 1]),
-            tf.reshape(tf.range(self.ctx_size), [self.ctx_size, 1])], 1)
-        self.ctx.assign(tf.tensor_scatter_nd_update(
-            self.ctx, location, tf.cast(ctx, tf.dtypes.float32)))
 
         # insert samples at the position of the current head
         location = tf.concat([
@@ -106,8 +95,6 @@ class ReplayBuffer(object):
 
         obs: tf.dtypes.float32
             a tensor shaped [batch_size, obs_size] containing observations
-        ctx: tf.dtypes.float32
-            a tensor shaped [batch_size, ctx_size] containing observations
         act: tf.dtypes.float32
             a tensor shaped [batch_size, act_size] containing actions
         reward: tf.dtypes.float32
@@ -116,16 +103,13 @@ class ReplayBuffer(object):
             a tensor shaped [batch_size, 1] containing a done signal
         next_obs: tf.dtypes.float32
             a tensor shaped [batch_size, obs_size] containing observations
-        next_ctx: tf.dtypes.float32
-            a tensor shaped [batch_size, ctx_size] containing observations
         """
 
-        indices = tf.random.shuffle(tf.range(self.size))[:batch_size]
+        indices = tf.random.uniform([
+            batch_size], maxval=self.size, dtype=tf.dtypes.int32)
         next_indices = tf.math.floormod(indices + 1, self.capacity)
         return (tf.gather(self.obs, indices, axis=0),
-                tf.gather(self.ctx, indices, axis=0),
                 tf.gather(self.act, indices, axis=0),
                 tf.gather(self.reward, indices, axis=0),
                 tf.gather(self.done, indices, axis=0),
-                tf.gather(self.obs, next_indices, axis=0),
-                tf.gather(self.ctx, next_indices, axis=0))
+                tf.gather(self.obs, next_indices, axis=0))

@@ -1,32 +1,44 @@
+import tensorflow as tf
+import gym
 from sac.networks import FeedForward, FeedForwardTanhGaussian
 from sac.replay_buffer import ReplayBuffer
 from sac.sac import SAC
 from sac.logger import Logger
 from sac.tensor_env import TensorEnv
 from sac.trainer import Trainer
-from sac.envs import PointMass
 
 
 if __name__ == "__main__":
 
-    logger = Logger("./point_mass/")
-    env = TensorEnv(PointMass())
+    logger = Logger("./half_cheetah5/")
+    training_env = TensorEnv(gym.make("HalfCheetah-v2"))
+    eval_env = TensorEnv(gym.make("HalfCheetah-v2"))
 
-    f = env.wrapped_env.render(mode="rgb_array")
-    print(f.shape)
-    exit()
+    low = training_env.action_space.low
+    high = training_env.action_space.high
 
-    act_size = env.action_space.shape[0]
-    obs_size = env.observation_space.shape[0]
-    ctx_size = env.context_space.shape[0]
+    act_size = training_env.action_space.shape[0]
+    obs_size = training_env.observation_space.shape[0]
 
-    policy = FeedForwardTanhGaussian(
-        256, act_size, env.action_space.low, env.action_space.high)
-    q_functions = [FeedForward(256, 1), FeedForward(256, 1)]
-    target_q_functions = [FeedForward(256, 1), FeedForward(256, 1)]
+    buffer = ReplayBuffer(1000000, obs_size, act_size)
 
-    algorithm = SAC(policy, q_functions, target_q_functions, logger=logger)
-    buffer = ReplayBuffer(100000, obs_size, ctx_size, act_size)
-    trainer = Trainer(env, policy, buffer, algorithm, logger)
+    policy = FeedForwardTanhGaussian(256, act_size, low, high)
+    q_functions = [FeedForward(256, 1),
+                   FeedForward(256, 1)]
+    target_q_functions = [FeedForward(256, 1),
+                          FeedForward(256, 1)]
 
-    trainer.train(1000000)
+    algorithm = SAC(policy,
+                    q_functions,
+                    target_q_functions,
+                    logger)
+
+    trainer = Trainer(training_env,
+                      eval_env,
+                      policy,
+                      buffer,
+                      algorithm,
+                      logger)
+
+    for i in range(1000000):
+        trainer.train(tf.constant(i, tf.dtypes.int64))

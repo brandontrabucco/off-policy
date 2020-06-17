@@ -29,7 +29,7 @@ class Box(gym.spaces.Space):
         self.ub = tf.logical_not(tf.math.is_nan(self.high))
 
         # create sampling distributions for the space
-        self.exponential = tfp.distributions.Exponential(tf.ones_like(self.low))
+        self.exp = tfp.distributions.Exponential(tf.ones_like(self.low))
         self.uniform = tfp.distributions.Uniform(self.low, self.high)
         self.normal = tfp.distributions.Normal(
             tf.zeros_like(self.low), tf.ones_like(self.low))
@@ -41,10 +41,8 @@ class Box(gym.spaces.Space):
         """
 
         samples = self.normal.sample()
-        samples = tf.where(
-            self.lb, self.exponential.sample() + self.low, samples)
-        samples = tf.where(
-            self.ub, -self.exponential.sample() + self.high, samples)
+        samples = tf.where(self.lb,  self.exp.sample() + self.low, samples)
+        samples = tf.where(self.ub, -self.exp.sample() + self.high, samples)
         return tf.where(
             tf.logical_and(self.lb, self.ub), self.uniform.sample(), samples)
 
@@ -65,7 +63,7 @@ class Box(gym.spaces.Space):
 
 class TensorEnv(gym.Env):
 
-    def __init__(self, wrapped_env):
+    def __init__(self, env):
         """Create an in-graph environment with the same API as the gym.Env
         class, but with static graph operations
 
@@ -75,23 +73,17 @@ class TensorEnv(gym.Env):
             an OpenAI Gym environment with step, reset, and render functions
         """
 
-        self.wrapped_env = wrapped_env
-        self.observation_space = Box(self.wrapped_env.observation_space.low,
-                                     self.wrapped_env.observation_space.high)
-        self.context_space = Box(self.wrapped_env.context_space.low,
-                                 self.wrapped_env.context_space.high)
-        self.action_space = Box(self.wrapped_env.action_space.low,
-                                self.wrapped_env.action_space.high)
-        self.reward_range = tf.convert_to_tensor(
-            self.wrapped_env.reward_range)
+        self.env = env
+        self.reward_range = tf.convert_to_tensor(self.env.reward_range)
+        self.observation_space = Box(self.env.observation_space.low,
+                                     self.env.observation_space.high)
+        self.action_space = Box(self.env.action_space.low,
+                                self.env.action_space.high)
 
     def _step(self, action):
-        obs, ctx, r, d = self.wrapped_env.step(action)[:4]
-        obs = obs.astype(np.float32)
-        ctx = ctx.astype(np.float32)
-        r = np.array([float(r)], np.float32)
-        d = np.array([bool(d)], np.bool)
-        return obs, ctx, r, d
+        obs, r, d = self.env.step(action)[:3]
+        return obs.astype(
+            np.float32), np.array([r], np.float32), np.array([d], np.bool)
 
     @tf.function
     def step(self, action):
@@ -104,19 +96,15 @@ class TensorEnv(gym.Env):
             a tensor that represents a single action sampled from an agent
         """
 
-        obs, ctx, r, d = tf.numpy_function(self._step, [
-            action], [tf.float32, tf.float32, tf.float32, tf.bool])
+        obs, r, d = tf.numpy_function(self._step, [
+            action], [tf.float32, tf.float32, tf.bool])
         obs.set_shape(self.observation_space.shape)
-        ctx.set_shape(self.context_space.shape)
         r.set_shape(tf.TensorShape([1]))
         d.set_shape(tf.TensorShape([1]))
-        return obs, ctx, r, d
+        return obs, r, d
 
     def _reset(self):
-        obs, ctx = self.wrapped_env.reset()
-        obs = obs.astype(np.float32)
-        ctx = ctx.astype(np.float32)
-        return obs, ctx
+        return self.env.reset().astype(np.float32)
 
     @tf.function
     def reset(self):
@@ -124,19 +112,20 @@ class TensorEnv(gym.Env):
         the initial observation
         """
 
-        obs, ctx = tf.numpy_function(self._reset, [], [tf.float32, tf.float32])
+        obs = tf.numpy_function(self._reset, [], tf.float32)
         obs.set_shape(self.observation_space.shape)
-        ctx.set_shape(self.context_space.shape)
-        return obs, ctx
+        return obs
 
     def _render(self):
-        return self.wrapped_env.render(mode='rgb_array',
-                                       height=32,
-                                       width=32).astype(np.float32)
+        return self.env.render(
+            mode='rgb_array', height=128, width=128).astype(np.float32)
 
     @tf.function
     def render(self):
         """Create an in-graph operations that renders a gym.Env and returns
         the image pixels in a tensor
         """
-        return tf.numpy_function(self._render, [], tf.float32)
+
+        img = tf.numpy_function(self._render, [], tf.float32)
+        img.set_shape([128, 128, 3])
+        return img
