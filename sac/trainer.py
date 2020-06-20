@@ -26,7 +26,7 @@ class Trainer(object):
             a neural network that returns an action probability distribution
         buffer: ReplayBuffer
             a static graph replay buffer for sampling batches of data
-        algorithm: SAC
+        algorithm: list of Algorithms
             an rl algorithm that takes in batches of data in a train function
         logger: Logger
             an intergace that supports a record function for tensorboard
@@ -59,7 +59,8 @@ class Trainer(object):
         obs = self.eval_env.reset()
         i = tf.constant(0)
         while tf.less(i, num_paths):
-            act = self.policy([obs[tf.newaxis]]).mean()[0]
+            act = self.policy.get_distribution(
+                self.policy([obs[tf.newaxis]])).mean()[0]
             obs, reward, done = self.eval_env.step(act)
             path_return += reward
             if done:
@@ -82,7 +83,8 @@ class Trainer(object):
 
         i = tf.cast(i, tf.dtypes.int64)
         if tf.greater_equal(i, self.warm_up_steps):
-            act = self.policy([self.obs[tf.newaxis]]).sample()[0]
+            act = self.policy.get_distribution(
+                self.policy([self.obs[tf.newaxis]])).sample()[0]
             self.algorithm.train(i, *self.buffer.sample(self.batch_size))
         else:
             act = self.training_env.action_space.sample()

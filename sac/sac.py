@@ -110,7 +110,7 @@ class SAC(object):
             a tensor shaped [batch_size, obs_size] containing observations
         """
 
-        dist = self.policy([next_obs])
+        dist = self.policy.get_distribution(self.policy([next_obs]))
         act = dist.sample()
         log_pis = tf.expand_dims(dist.log_prob(act), -1)
         next_q = tuple(q([next_obs, act]) for q in self.target_q_functions)
@@ -175,7 +175,7 @@ class SAC(object):
 
         with tf.GradientTape() as tape:
 
-            dist = self.policy([obs])
+            dist = self.policy.get_distribution(self.policy([obs]))
             act = dist.sample()
             log_pis = tf.expand_dims(dist.log_prob(act), -1)
 
@@ -206,7 +206,7 @@ class SAC(object):
             a tensor shaped [batch_size, obs_size] containing observations
         """
 
-        dist = self.policy([obs])
+        dist = self.policy.get_distribution(self.policy([obs]))
         act = dist.sample()
         log_pis = tf.expand_dims(dist.log_prob(act), -1)
 
