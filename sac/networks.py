@@ -1,10 +1,10 @@
+from tensorflow_probability import distributions as tfpd
 import tensorflow_probability as tfp
 import tensorflow as tf
 import tree
-from tensorflow_probability import distributions as tfpd
 
 
-def cast_and_concat(x):
+def concat(x):
     """Concatenate every tensor in a nested list that contains
     many tensors with different shapes
 
@@ -19,14 +19,16 @@ def cast_and_concat(x):
         a single tensor, the result of concatenating elements in x
     """
 
-    x = tree.map_structure(
-        lambda element: tf.cast(element, tf.float32), x)
-    return tf.concat(tree.flatten(x), axis=-1)
+    return tf.concat(tree.flatten(tree.map_structure(
+        lambda element: tf.cast(element, tf.float32), x)), axis=-1)
 
 
 class FeedForward(tf.keras.Sequential):
 
-    def __init__(self, hidden_size, output_size):
+    def __call__(self, inputs, **kwargs):
+        return super(FeedForward, self).__call__(concat(inputs), **kwargs)
+
+    def __init__(self, input_size, hidden_size, output_size):
         """Create a feed forward neural network with the provided
         hidden size and output size
 
@@ -38,18 +40,42 @@ class FeedForward(tf.keras.Sequential):
             the number of neurons in the output layer of the network
         """
 
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+
         super(FeedForward, self).__init__([
-            tf.keras.layers.Lambda(cast_and_concat),
-            tf.keras.layers.Dense(hidden_size),
+            tf.keras.layers.Dense(hidden_size, input_shape=(input_size,)),
             tf.keras.layers.ReLU(),
             tf.keras.layers.Dense(hidden_size),
             tf.keras.layers.ReLU(),
             tf.keras.layers.Dense(output_size)])
 
 
-class FeedForwardTanhGaussian(tf.keras.Sequential):
+def split(x):
+    """split a tensor in half to parameterize the mean and standard
+    deviation of a multivariate gaussian
 
-    def __init__(self, hidden_size, output_size, low, high):
+    Args:
+
+    x: tf.dtypes.float32
+        the activations from the final layer of a neural network
+
+    Returns:
+
+    mean: tf.dtypes.float32
+        the mean of a probability distribution
+    std: tf.dtypes.float32
+        the standard deviation of a probability distribution
+    """
+
+    mean, std = tf.split(x, num_or_size_splits=2, axis=-1)
+    return mean, tf.math.softplus(std)
+
+
+class TanhGaussian(FeedForward):
+
+    def __init__(self, low, high, input_size, hidden_size, output_size):
         """Create a feed forward neural network with the provided
         hidden size and output size
 
@@ -61,43 +87,83 @@ class FeedForwardTanhGaussian(tf.keras.Sequential):
             the number of neurons in the output layer of the network
         """
 
-        self.hidden_size = hidden_size
-        self.output_size = output_size
         self.low = low
         self.high = high
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
 
-        super(FeedForwardTanhGaussian, self).__init__([
-            tf.keras.layers.Lambda(cast_and_concat),
-            tf.keras.layers.Dense(hidden_size),
+        super(FeedForward, self).__init__([
+            tf.keras.layers.Dense(hidden_size, input_shape=(input_size,)),
             tf.keras.layers.ReLU(),
             tf.keras.layers.Dense(hidden_size),
             tf.keras.layers.ReLU(),
             tf.keras.layers.Dense(output_size * 2)])
 
-    def get_distribution(self, x):
-        """Build a tanh normalized gaussian distribution from the
-        outputs of a neural network
+    def get_distribution(self, inputs, **kwargs):
+        """Build a tanh normalized gaussian distribution using a neural
+        network backbone and return the distribution
 
         Args:
 
-        x: tf.dtypes.float32
+        inputs: tf.dtypes.float32
             the output of a neural network used to build a distribution
 
         Returns:
 
         d: tfp.Distribution
-            a tanh normalized probability distribution over actions
+            a tensorflow probability distribution over normalized actions
         """
 
-        loc = x[..., :self.output_size]
-        scale_diag = tf.math.softplus(x[..., self.output_size:])
-        tanh = tfp.bijectors.Tanh()
-        tanh._is_constant_jacobian = True  # hack to get mean() to work
-
-        chain = tfp.bijectors.Chain([
-            tanh,
+        loc, scale_diag = split(self.__call__(inputs, **kwargs))
+        d = tfpd.MultivariateNormalDiag(loc=loc, scale_diag=scale_diag)
+        tanh_bijector = tfp.bijectors.Tanh()
+        tanh_bijector._is_constant_jacobian = True
+        return tfpd.TransformedDistribution(d, tfp.bijectors.Chain([
+            tanh_bijector,
             tfp.bijectors.Scale((self.high - self.low) / 2.0),
-            tfp.bijectors.Shift((self.high + self.low) / 2.0)])
-        return tfpd.TransformedDistribution(
-            tfpd.MultivariateNormalDiag(loc=loc, scale_diag=scale_diag),
-            chain)
+            tfp.bijectors.Shift((self.high + self.low) / 2.0)]))
+
+    def mean(self, inputs, log_probs=False, **kwargs):
+        """Build a tanh normalized gaussian distribution using a neural
+        network backbone and return the mean
+
+        Args:
+
+        inputs: tf.dtypes.float32
+            the output of a neural network used to build a distribution
+
+        Returns:
+
+        mean: tf.dtypes.float32
+            the mean of a probability distribution over actions
+        log_pis: tf.dtypes.float32
+            (optional) the log probabilities of the sampled actions
+        """
+
+        d = self.get_distribution(inputs, **kwargs)
+        samples = d.mean()
+        return (samples, d.log_prob(
+            samples)) if log_probs else samples
+
+    def sample(self, inputs, log_probs=False, **kwargs):
+        """Build a tanh normalized gaussian distribution using a neural
+        network backbone and return samples
+
+        Args:
+
+        inputs: tf.dtypes.float32
+            the output of a neural network used to build a distribution
+
+        Returns:
+
+        samples: tf.dtypes.float32
+            samples of a probability distribution over actions
+        log_pis: tf.dtypes.float32
+            (optional) the log probabilities of the sampled actions
+        """
+
+        d = self.get_distribution(inputs, **kwargs)
+        samples = d.sample()
+        return (samples, d.log_prob(
+            samples)) if log_probs else samples

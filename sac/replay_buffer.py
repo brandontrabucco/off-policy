@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-class ReplayBuffer(object):
+class ReplayBuffer(tf.Module):
 
     def __init__(self, capacity, obs_size, act_size):
         """A static graph replay buffer that stores samples collected
@@ -33,6 +33,7 @@ class ReplayBuffer(object):
         # save size statistics for the buffer
         self.head = tf.Variable(tf.constant(0))
         self.size = tf.Variable(tf.constant(0))
+        self.step = tf.Variable(tf.constant(0))
 
     @tf.function
     def insert(self, obs, act, reward, done):
@@ -80,6 +81,7 @@ class ReplayBuffer(object):
         # increment the size statistics of the buffer
         self.head.assign(tf.math.floormod(self.head + 1, self.capacity))
         self.size.assign(tf.minimum(self.size + 1, self.capacity))
+        self.step.assign(self.step + 1)
 
     @tf.function
     def sample(self, batch_size):
@@ -93,6 +95,8 @@ class ReplayBuffer(object):
 
         Returns:
 
+        step: tf.dtypes.int64
+            a scalar tensor that indicates the training iteration
         obs: tf.dtypes.float32
             a tensor shaped [batch_size, obs_size] containing observations
         act: tf.dtypes.float32
@@ -108,7 +112,7 @@ class ReplayBuffer(object):
         indices = tf.random.uniform([
             batch_size], maxval=self.size, dtype=tf.dtypes.int32)
         next_indices = tf.math.floormod(indices + 1, self.capacity)
-        return (tf.gather(self.obs, indices, axis=0),
+        return (self.step, tf.gather(self.obs, indices, axis=0),
                 tf.gather(self.act, indices, axis=0),
                 tf.gather(self.reward, indices, axis=0),
                 tf.gather(self.done, indices, axis=0),
