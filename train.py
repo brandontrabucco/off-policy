@@ -12,7 +12,7 @@ import gym
 
 if __name__ == "__main__":
 
-    logging_dir = './half_cheetah2'
+    logging_dir = './half_cheetah7'
 
     logger = Logger(logging_dir)
     training_env = TensorEnv(gym.make("HalfCheetah-v2"))
