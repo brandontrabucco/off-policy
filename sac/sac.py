@@ -14,7 +14,7 @@ class SAC(tf.Module):
                  reward_scale=tf.constant(1.0),
                  discount=tf.constant(0.99),
                  tau=tf.constant(5e-3),
-                 target_update_interval=tf.constant(1)):
+                 target_delay=tf.constant(1)):
         """An implementation of soft actor critic in static graph tensorflow
         with automatic entropy tuning
 
@@ -32,7 +32,7 @@ class SAC(tf.Module):
         self.reward_scale = reward_scale
         self.discount = discount
         self.tau = tau
-        self.target_update_interval = target_update_interval
+        self.target_delay = target_delay
 
         # create training machinery for the policy
         self.policy = policy
@@ -187,7 +187,7 @@ class SAC(tf.Module):
         self.update_q(obs, act, reward, done, next_obs)
         self.update_policy(obs)
         self.update_alpha(obs)
-        if i % self.target_update_interval == 0:
+        if i % self.target_delay == 0:
             self.update_target(tau=self.tau)
 
     @tf.function

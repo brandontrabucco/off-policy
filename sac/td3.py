@@ -1,5 +1,4 @@
 import tensorflow as tf
-import tensorflow_probability as tfp
 
 
 class TD3(tf.Module):
@@ -16,7 +15,7 @@ class TD3(tf.Module):
                  tau=tf.constant(5e-3),
                  noise_std=tf.constant(0.2),
                  noise_range=tf.constant(0.5),
-                 target_update_interval=tf.constant(1)):
+                 target_delay=tf.constant(1)):
         """An implementation of twin-delayed ddpg in static graph tensorflow
         using tf.keras models
 
@@ -38,7 +37,7 @@ class TD3(tf.Module):
         self.tau = tau
         self.noise_std = noise_std
         self.noise_range = noise_range
-        self.target_update_interval = target_update_interval
+        self.target_delay = target_delay
 
         # create training machinery for the policy
         self.policy = policy
@@ -64,7 +63,8 @@ class TD3(tf.Module):
             a parameter to control the extent of the target update
         """
 
-        for q, q_t in zip(self.q_functions, self.target_q_functions):
+        for q, q_t in zip([self.policy] + self.q_functions,
+                          [self.target_policy] + self.target_q_functions):
             for source_weight, target_weight in zip(
                     q.trainable_variables, q_t.trainable_variables):
                 target_weight.assign(
@@ -172,7 +172,7 @@ class TD3(tf.Module):
             self.update_target(tf.constant(1.0))
         self.update_q(obs, act, reward, done, next_obs)
         self.update_policy(obs)
-        if i % self.target_update_interval == 0:
+        if i % self.target_delay == 0:
             self.update_target(tau=self.tau)
 
     @tf.function
