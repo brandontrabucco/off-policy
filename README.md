@@ -1,2 +1,2 @@
-# sac
-Soft Actor-Critic
+# Off-Policy Reinforcement Learning Algorithms
+Off-Policy Reinforcement Learning Algorithms

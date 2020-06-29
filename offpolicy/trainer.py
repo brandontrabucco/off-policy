@@ -24,7 +24,7 @@ class Trainer(object):
             a neural network that returns an action probability distribution
         buffer: ReplayBuffer
             a static graph replay buffer for sampling batches of data
-        algorithm: list of Algorithms
+        algorithm: Algorithm
             an rl algorithm that takes in batches of data in a train function
         """
 
@@ -70,18 +70,14 @@ class Trainer(object):
         """
 
         array = tf.TensorArray(tf.dtypes.float32, size=num_paths)
-        path_return = tf.constant([0.0])
-        obs = self.eval_env.reset()
-        i = tf.constant(0)
-        while tf.less(i, num_paths):
-            act = self.policy.mean([obs[tf.newaxis]])[0]
-            obs, reward, done = self.eval_env.step(act)
-            path_return += reward
-            if done:
-                array = array.write(i, path_return)
-                path_return = tf.constant([0.0])
-                obs = self.eval_env.reset()
-                i = i + 1
+        for i in tf.range(num_paths):
+            obs, done = self.eval_env.reset(), tf.constant([False])
+            path_return = tf.constant([0.0])
+            while tf.logical_not(done):
+                act = self.policy.mean([obs[tf.newaxis]])[0]
+                obs, reward, done = self.eval_env.step(act)
+                path_return += reward
+            array = array.write(i, path_return)
         return array.stack()
 
     @tf.function
@@ -111,6 +107,5 @@ class Trainer(object):
         """
 
         return {
-            "buffer": self.buffer,
-            "policy": self.policy,
+            "buffer": self.buffer, "policy": self.policy,
             **self.algorithm.get_saveables()}

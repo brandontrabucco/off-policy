@@ -19,8 +19,8 @@ class Box(gym.spaces.Space):
         """
 
         super(Box, self).__init__(None, None)
-        self.low = tf.Variable(low, dtype=tf.float32)
-        self.high = tf.Variable(high, dtype=tf.float32)
+        self.low = tf.convert_to_tensor(low, dtype=tf.float32)
+        self.high = tf.convert_to_tensor(high, dtype=tf.float32)
         self.shape = self.low.get_shape()
         self.dtype = self.low.dtype
 
