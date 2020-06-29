@@ -9,14 +9,14 @@ class TD3(Algorithm):
                  target_policy,
                  q_functions,
                  target_q_functions,
-                 policy_lr=tf.constant(3e-4),
-                 q_lr=tf.constant(3e-4),
+                 policy_lr=tf.constant(1e-3),
+                 q_lr=tf.constant(1e-3),
                  reward_scale=tf.constant(1.0),
                  discount=tf.constant(0.99),
                  tau=tf.constant(5e-3),
                  noise_std=tf.constant(0.2),
                  noise_range=tf.constant(0.5),
-                 target_delay=tf.constant(1)):
+                 target_delay=tf.constant(2)):
         """An implementation of twin-delayed ddpg in static graph tensorflow
         using tf.keras models
 

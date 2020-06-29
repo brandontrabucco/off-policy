@@ -4,7 +4,7 @@ import gym
 
 if __name__ == "__main__":
 
-    train('./half_cheetah_td32',
-          gym.make('HalfCheetah-v2'),
-          gym.make('HalfCheetah-v2'),
+    train('./ant_td3',
+          gym.make('Ant-v2'),
+          gym.make('Ant-v2'),
           'TD3')

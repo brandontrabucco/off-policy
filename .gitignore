@@ -2,8 +2,8 @@ checkpoint
 step
 events.out.tfevents.**
 *.egg-info**
-*.ckpt**
-.idea**
+*ckpt**
+*idea**
 *.out**
 *.pkl**
 *.txt**
