@@ -75,8 +75,8 @@ class Trainer(object):
             path_return = tf.constant([0.0])
             while tf.logical_not(done):
                 act = self.policy.mean([obs[tf.newaxis]])[0]
-                obs, reward, done = self.eval_env.step(act)
-                path_return += reward
+                obs, rew, done = self.eval_env.step(act)
+                path_return += rew
             array = array.write(i, path_return)
         return array.stack()
 
