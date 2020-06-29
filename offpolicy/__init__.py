@@ -64,6 +64,6 @@ def train(logging_dir,
     while b.step < kwargs.get('iterations', 1000000):
         trainer.train()
         if b.step % kwargs.get('log_interval', 10000) == 0:
-            manager.save()
+            manager.save(checkpoint_number=b.step)
             for key, value in trainer.get_diagnostics().items():
                 logger.record(key, value, tf.cast(b.step, tf.int64))
