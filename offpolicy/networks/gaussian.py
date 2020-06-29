@@ -6,7 +6,7 @@ import tensorflow as tf
 class Gaussian(FeedForward):
 
     def __init__(self, low, high, input_size, hidden_size, output_size,
-                 exploration_noise=0.1):
+                 expl_noise=0.1):
         """Create a feed forward neural network with the provided
         hidden size and output size
 
@@ -23,7 +23,7 @@ class Gaussian(FeedForward):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        self.exploration_noise = exploration_noise
+        self.expl_noise = expl_noise
 
         super(FeedForward, self).__init__([
             tf.keras.layers.Dense(hidden_size, input_shape=(input_size,)),
@@ -51,7 +51,7 @@ class Gaussian(FeedForward):
         loc = self.__call__(inputs, **kwargs)
         loc = loc * (self.high - self.low) / 2.0
         loc = loc + (self.high + self.low) / 2.0
-        scale_diag = tf.ones_like(loc) * self.exploration_noise
+        scale_diag = tf.ones_like(loc) * self.expl_noise
         return tfpd.MultivariateNormalDiag(loc=loc, scale_diag=scale_diag)
 
     def mean(self, inputs, log_probs=False, **kwargs):

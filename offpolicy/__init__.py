@@ -7,7 +7,8 @@ for gpu in tf.config.experimental.list_physical_devices('GPU'):
 def train(logging_dir,
           training_env,
           eval_env,
-          alg):
+          alg,
+          **kwargs):
     """Train a policy using an off policy reinforcement learning
     algorithm such as SAC or TD3
 
@@ -30,7 +31,6 @@ def train(logging_dir,
     from offpolicy.trainer import Trainer
     import os
 
-    n = 1000000
     logger = Logger(logging_dir)
     training_env = Env(training_env)
     eval_env = Env(eval_env)
@@ -43,29 +43,33 @@ def train(logging_dir,
         training_env.action_space.low,
         training_env.action_space.high,
         obs_size,
-        act_size)
+        act_size,
+        **kwargs)
 
-    b = ReplayBuffer(1000000, obs_size, act_size)
+    b = ReplayBuffer(
+        kwargs.get('buffer_size', 1000000), obs_size, act_size)
 
     trainer = Trainer(
         training_env,
         eval_env,
         alg.policy,
         b,
-        alg)
+        alg,
+        warm_up_steps=kwargs.get('warm_up_steps', 5000),
+        batch_size=kwargs.get('batch_size', 256))
 
     ckpt = tf.train.Checkpoint(**trainer.get_saveables())
     path = tf.train.latest_checkpoint(logging_dir)
     if path is not None:
         ckpt.restore(path)
 
-    while b.step < n:
+    while b.step < kwargs.get('iterations', 1000000):
 
         trainer.train()
 
-        if b.step % 5000 == 0:
+        if b.step % kwargs.get('log_every', 5000) == 0:
             for key, value in trainer.get_diagnostics().items():
                 logger.record(key, value, tf.cast(b.step, tf.int64))
 
-        if b.step % 10000 == 0 and b.step > 0:
+        if b.step % kwargs.get('save_every', 10000) == 0:
             ckpt.save(os.path.join(logging_dir, 'alg.ckpt'))
