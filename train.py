@@ -1,7 +1,7 @@
 from offpolicy.replay_buffer import ReplayBuffer
 from offpolicy.algorithms import get_algorithm
 from offpolicy.logger import Logger
-from offpolicy.tensor_env import TensorEnv
+from offpolicy.env import Env
 from offpolicy.trainer import Trainer
 import tensorflow as tf
 import os
@@ -28,8 +28,8 @@ def train(logging_dir,
     """
 
     logger = Logger(logging_dir)
-    training_env = TensorEnv(training_env)
-    eval_env = TensorEnv(eval_env)
+    training_env = Env(training_env)
+    eval_env = Env(eval_env)
 
     act_size = training_env.action_space.shape[0]
     obs_size = training_env.observation_space.shape[0]

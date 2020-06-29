@@ -61,7 +61,7 @@ class Box(gym.spaces.Space):
             tf.greater_equal(x, self.low), tf.less_equal(x, self.high))
 
 
-class TensorEnv(gym.Env):
+class Env(gym.Env):
 
     def __init__(self, env):
         """Create an in-graph environment with the same API as the gym.Env
