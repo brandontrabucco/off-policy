@@ -6,6 +6,14 @@ LOGDIR=/global/shared/btrabucco
 . $PKGDIR/anaconda3/etc/profile.d/conda.sh
 conda activate offpolicy
 
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.mujoco/mujoco200_linux/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.mujoco/mjpro150/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.mujoco/mjpro131/bin
+
+cp -r $PACKAGES/.mujoco $HOME/.mujoco
+ln -s $HOME/.mujoco/mujoco200_linux $HOME/.mujoco/mujoco200
+
 CUDA_VISIBLE_DEVICES="0" python $PKGDIR/off-policy/train.py --alg TD3 --env Ant-v2 --logdir $LOGDIR/td3_ant_0 &
 pids[0]=$!
 CUDA_VISIBLE_DEVICES="0" python $PKGDIR/off-policy/train.py --alg TD3 --env Ant-v2 --logdir $LOGDIR/td3_ant_1 &
