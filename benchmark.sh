@@ -4,7 +4,6 @@ PKGDIR=/packages
 LOGDIR=/global/shared/btrabucco
 
 . $PKGDIR/anaconda3/etc/profile.d/conda.sh
-
 conda activate offpolicy
 
 CUDA_VISIBLE_DEVICES="0" python $PKGDIR/off-policy/train.py --alg TD3 --env Ant-v2 --logging_dir $LOGDIR/td3_ant_0 &
@@ -63,7 +62,6 @@ pids[22]=$!
 CUDA_VISIBLE_DEVICES="7" python $PKGDIR/off-policy/train.py --alg SAC --env Walker2d-v2 --logging_dir $LOGDIR/sac_walker2d_2 &
 pids[23]=$!
 
-# wait for all pids
 for pid in ${pids[*]}; do
     wait $pid
 done
