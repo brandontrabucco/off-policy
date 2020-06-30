@@ -3,7 +3,7 @@ import gym
 import sys
 
 
-def clean_arguments(args):
+def parse_args(args):
     """Parse arbitrary command line arguments into a dictionary of
     parameters for specifying hyper-parameters
     https://stackoverflow.com/a/34097314
@@ -70,9 +70,8 @@ def clean_arguments(args):
 
 if __name__ == "__main__":
 
-    kwargs = clean_arguments(sys.argv[1:])
-    train(kwargs.pop('logdir', './ant_sac'),
-          gym.make(kwargs.pop('env', 'Ant-v2')),
-          gym.make(kwargs.pop('env', 'Ant-v2')),
-          kwargs.pop('alg', 'SAC'),
-          **kwargs)
+    kwargs = parse_args(sys.argv[1:])
+    logdir = kwargs.pop('logdir', './ant_sac')
+    env = kwargs.pop('env', 'Ant-v2')
+    alg = kwargs.pop('alg', 'SAC')
+    train(logdir, gym.make(env), gym.make(env), alg, **kwargs)
