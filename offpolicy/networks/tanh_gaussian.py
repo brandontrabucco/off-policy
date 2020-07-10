@@ -45,12 +45,24 @@ class TanhGaussian(FeedForward):
         self.hidden_size = hidden_size
         self.output_size = output_size
 
+        self.scale = (self.high - self.low)[tf.newaxis] / 2.0
+        self.shift = (self.high + self.low)[tf.newaxis] / 2.0
+
+        hidden_init = tf.keras.initializers.VarianceScaling(
+            scale=1.0 / 3.0, mode='fan_in', distribution='uniform')
+        out_init = tf.random_uniform_initializer(
+            minval=-0.003, maxval=0.003, seed=None)
+
         super(FeedForward, self).__init__([
-            tf.keras.layers.Dense(hidden_size, input_shape=(input_size,)),
+            tf.keras.layers.Dense(hidden_size,
+                                  input_shape=(input_size,),
+                                  kernel_initializer=hidden_init),
             tf.keras.layers.ReLU(),
-            tf.keras.layers.Dense(hidden_size),
+            tf.keras.layers.Dense(hidden_size,
+                                  kernel_initializer=hidden_init),
             tf.keras.layers.ReLU(),
-            tf.keras.layers.Dense(output_size * 2)])
+            tf.keras.layers.Dense(output_size * 2,
+                                  kernel_initializer=out_init)])
 
     def get_distribution(self, inputs, **kwargs):
         """Build a tanh normalized gaussian distribution using a neural
@@ -72,9 +84,9 @@ class TanhGaussian(FeedForward):
         tanh_bijector = tfp.bijectors.Tanh()
         tanh_bijector._is_constant_jacobian = True
         return tfpd.TransformedDistribution(d, tfp.bijectors.Chain([
-            tanh_bijector,
-            tfp.bijectors.Scale((self.high - self.low) / 2.0),
-            tfp.bijectors.Shift((self.high + self.low) / 2.0)]))
+            tfp.bijectors.Shift(shift=self.shift),
+            tfp.bijectors.Scale(scale=self.scale),
+            tanh_bijector]))
 
     def mean(self, inputs, log_probs=False, **kwargs):
         """Build a tanh normalized gaussian distribution using a neural
@@ -94,7 +106,8 @@ class TanhGaussian(FeedForward):
         """
 
         d = self.get_distribution(inputs, **kwargs)
-        samples = d.mean()
+        samples = tf.clip_by_value(
+            d.mean(), self.low[tf.newaxis], self.high[tf.newaxis])
         return (samples, d.log_prob(
             samples)) if log_probs else samples
 
@@ -116,6 +129,7 @@ class TanhGaussian(FeedForward):
         """
 
         d = self.get_distribution(inputs, **kwargs)
-        samples = d.sample()
+        samples = tf.clip_by_value(
+            d.sample(), self.low[tf.newaxis], self.high[tf.newaxis])
         return (samples, d.log_prob(
             samples)) if log_probs else samples

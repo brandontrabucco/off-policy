@@ -82,6 +82,7 @@ class Env(gym.Env):
 
     def _step(self, action):
         obs, r, d = self.env.step(action)[:3]
+        d = d or not np.all(np.isfinite(obs)) or not np.isfinite(r)
         return obs.astype(
             np.float32), np.array([r], np.float32), np.array([d], np.bool)
 

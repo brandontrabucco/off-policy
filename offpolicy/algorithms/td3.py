@@ -89,10 +89,10 @@ class TD3(Algorithm):
         """
 
         act = self.target_policy.mean([next_obs])
-        noise = tf.clip_by_value(tf.random.normal(tf.shape(
+        act = act + tf.clip_by_value(tf.random.normal(tf.shape(
             act)) * self.noise_std, -self.noise_range, self.noise_range)
         act = tf.clip_by_value(
-            act + noise, self.policy.low, self.policy.high)
+            act, self.policy.low[tf.newaxis], self.policy.high[tf.newaxis])
         next_q = tuple(q([next_obs, act]) for q in self.target_q_functions)
         next_q = tf.reduce_min(next_q, axis=0)
         next_q = self.discount * (1.0 - tf.cast(done, next_q.dtype)) * next_q
@@ -201,6 +201,7 @@ class TD3(Algorithm):
         new_act = self.policy.mean([obs])
         diagnostics = {
             "act": new_act,
+            "done": tf.cast(done, tf.float32),
             "policy_loss": -tf.reduce_min(
                 tuple(q([obs, new_act]) for q in self.q_functions), axis=0),
             "bellman_targets": self.bellman_targets(reward, done, next_obs)}

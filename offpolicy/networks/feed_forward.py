@@ -42,9 +42,18 @@ class FeedForward(tf.keras.Sequential):
         self.hidden_size = hidden_size
         self.output_size = output_size
 
+        hidden_init = tf.keras.initializers.VarianceScaling(
+            scale=1.0 / 3.0, mode='fan_in', distribution='uniform')
+        out_init = tf.random_uniform_initializer(
+            minval=-0.003, maxval=0.003, seed=None)
+
         super(FeedForward, self).__init__([
-            tf.keras.layers.Dense(hidden_size, input_shape=(input_size,)),
+            tf.keras.layers.Dense(hidden_size,
+                                  input_shape=(input_size,),
+                                  kernel_initializer=hidden_init),
             tf.keras.layers.ReLU(),
-            tf.keras.layers.Dense(hidden_size),
+            tf.keras.layers.Dense(hidden_size,
+                                  kernel_initializer=hidden_init),
             tf.keras.layers.ReLU(),
-            tf.keras.layers.Dense(output_size)])
+            tf.keras.layers.Dense(output_size,
+                                  kernel_initializer=out_init)])

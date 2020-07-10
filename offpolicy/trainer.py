@@ -44,8 +44,8 @@ class Trainer(object):
         """
 
         if tf.greater_equal(self.buffer.step, self.warm_up_steps):
-            act = self.policy.sample([self.obs[tf.newaxis]])[0]
             self.algorithm.train(*self.buffer.sample(self.batch_size))
+            act = self.policy.sample([self.obs[tf.newaxis]])[0]
         else:
             act = self.training_env.action_space.sample()
         next_obs, reward, done = self.training_env.step(act)
@@ -67,18 +67,24 @@ class Trainer(object):
 
         returns: tf.dtypes.float32
             a tensor containing returns from num_paths independent trials
+        lengths: tf.dtypes.float32
+            a tensor containing the length of episodes that were sampled
         """
 
-        array = tf.TensorArray(tf.dtypes.float32, size=num_paths)
+        return_array = tf.TensorArray(tf.dtypes.float32, size=num_paths)
+        length_array = tf.TensorArray(tf.dtypes.float32, size=num_paths)
         for i in tf.range(num_paths):
             obs, done = self.eval_env.reset(), tf.constant([False])
-            path_return = tf.constant([0.0])
+            returns = tf.constant([0.0])
+            lengths = tf.constant([0.0])
             while tf.logical_not(done):
                 act = self.policy.mean([obs[tf.newaxis]])[0]
                 obs, rew, done = self.eval_env.step(act)
-                path_return += rew
-            array = array.write(i, path_return)
-        return array.stack()
+                returns += rew
+                lengths += 1.0
+            return_array = return_array.write(i, returns)
+            length_array = length_array.write(i, lengths)
+        return return_array.stack(), length_array.stack()
 
     @tf.function
     def get_diagnostics(self):
@@ -91,10 +97,10 @@ class Trainer(object):
             a dict containing tensors whose statistics will be summarized
         """
 
-        return {
-            "return": self.evaluate(10),
-            **self.algorithm.get_diagnostics(
-                *self.buffer.sample(self.batch_size))}
+        returns, lengths = self.evaluate(10)
+        return {"return": returns, "length": lengths,
+                **self.algorithm.get_diagnostics(
+                    *self.buffer.sample(self.batch_size))}
 
     def get_saveables(self):
         """Collects and returns stateful objects that are serializeable
@@ -106,6 +112,5 @@ class Trainer(object):
             a dict containing stateful objects compatible with checkpoints
         """
 
-        return {
-            "buffer": self.buffer, "policy": self.policy,
-            **self.algorithm.get_saveables()}
+        return {"buffer": self.buffer, "policy": self.policy,
+                **self.algorithm.get_saveables()}

@@ -6,7 +6,7 @@ import tensorflow as tf
 class Gaussian(FeedForward):
 
     def __init__(self, low, high, input_size, hidden_size, output_size,
-                 expl_noise=0.1):
+                 exploration_noise=0.1):
         """Create a feed forward neural network with the provided
         hidden size and output size
 
@@ -23,14 +23,26 @@ class Gaussian(FeedForward):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        self.expl_noise = expl_noise
+        self.exploration_noise = exploration_noise
+
+        self.scale = (self.high - self.low)[tf.newaxis] / 2.0
+        self.shift = (self.high + self.low)[tf.newaxis] / 2.0
+
+        hidden_init = tf.keras.initializers.VarianceScaling(
+            scale=1.0 / 3.0, mode='fan_in', distribution='uniform')
+        out_init = tf.random_uniform_initializer(
+            minval=-0.003, maxval=0.003, seed=None)
 
         super(FeedForward, self).__init__([
-            tf.keras.layers.Dense(hidden_size, input_shape=(input_size,)),
+            tf.keras.layers.Dense(hidden_size,
+                                  input_shape=(input_size,),
+                                  kernel_initializer=hidden_init),
             tf.keras.layers.ReLU(),
-            tf.keras.layers.Dense(hidden_size),
+            tf.keras.layers.Dense(hidden_size,
+                                  kernel_initializer=hidden_init),
             tf.keras.layers.ReLU(),
-            tf.keras.layers.Dense(output_size),
+            tf.keras.layers.Dense(output_size,
+                                  kernel_initializer=out_init),
             tf.keras.layers.Activation("tanh")])
 
     def get_distribution(self, inputs, **kwargs):
@@ -48,10 +60,8 @@ class Gaussian(FeedForward):
             a tensorflow probability distribution over normalized actions
         """
 
-        loc = self.__call__(inputs, **kwargs)
-        loc = loc * (self.high - self.low) / 2.0
-        loc = loc + (self.high + self.low) / 2.0
-        scale_diag = tf.ones_like(loc) * self.expl_noise
+        loc = self.__call__(inputs, **kwargs) * self.scale + self.shift
+        scale_diag = tf.ones_like(loc) * self.exploration_noise
         return tfpd.MultivariateNormalDiag(loc=loc, scale_diag=scale_diag)
 
     def mean(self, inputs, log_probs=False, **kwargs):
@@ -72,7 +82,8 @@ class Gaussian(FeedForward):
         """
 
         d = self.get_distribution(inputs, **kwargs)
-        samples = tf.clip_by_value(d.mean(), self.low, self.high)
+        samples = tf.clip_by_value(
+            d.mean(), self.low[tf.newaxis], self.high[tf.newaxis])
         return (samples, d.log_prob(
             samples)) if log_probs else samples
 
@@ -94,6 +105,7 @@ class Gaussian(FeedForward):
         """
 
         d = self.get_distribution(inputs, **kwargs)
-        samples = tf.clip_by_value(d.sample(), self.low, self.high)
+        samples = tf.clip_by_value(
+            d.sample(), self.low[tf.newaxis], self.high[tf.newaxis])
         return (samples, d.log_prob(
             samples)) if log_probs else samples

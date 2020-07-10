@@ -53,7 +53,7 @@ def train(logging_dir,
         alg.policy,
         b,
         alg,
-        warm_up_steps=kwargs.get('warm_up_steps', 5000),
+        warm_up_steps=kwargs.get('warm_up_steps', 10000),
         batch_size=kwargs.get('batch_size', 256))
 
     ckpt = tf.train.Checkpoint(**trainer.get_saveables())

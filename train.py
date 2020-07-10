@@ -1,6 +1,8 @@
 from offpolicy import train
 import gym
 import sys
+import os
+import json
 
 
 def parse_args(args):
@@ -72,6 +74,22 @@ if __name__ == "__main__":
 
     kwargs = parse_args(sys.argv[1:])
     logdir = kwargs.pop('logdir', './ant_sac')
+
+    # save the hyper parameters used for this experiment
+    path = os.path.join(logdir, "kwargs.json")
+    os.makedirs(logdir, exist_ok=True)
+    if os.path.isfile(path):
+        with open(path, "r") as f:
+            existing_kwargs = json.load(f)
+            existing_kwargs.update(kwargs)
+            kwargs = existing_kwargs
+    with open(path, "w") as f:
+        json.dump(kwargs, f)
+
     env = kwargs.pop('env', 'Ant-v2')
     alg = kwargs.pop('alg', 'SAC')
-    train(logdir, gym.make(env), gym.make(env), alg, **kwargs)
+    train(logdir,
+          gym.make(env),
+          gym.make(env),
+          alg,
+          **kwargs)

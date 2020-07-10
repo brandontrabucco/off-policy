@@ -220,6 +220,7 @@ class SAC(Algorithm):
         new_act, log_pis = self.policy.sample([obs], log_probs=True)
         diagnostics = {
             "act": new_act, "log_pis": log_pis,
+            "done": tf.cast(done, tf.float32),
             "policy_loss": self.alpha * log_pis - tf.reduce_min(
                 tuple(q([obs, new_act]) for q in self.q_functions), axis=0),
             "bellman_targets": self.bellman_targets(reward, done, next_obs),

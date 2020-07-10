@@ -1,5 +1,6 @@
 from offpolicy.algorithms.sac import SAC
 from offpolicy.algorithms.td3 import TD3
+from offpolicy.networks import QFunction
 from offpolicy.networks import FeedForward
 from offpolicy.networks import TanhGaussian
 from offpolicy.networks import Gaussian
@@ -63,19 +64,21 @@ def get_algorithm(alg,
 
         policy = Gaussian(
             low, high, obs_size, 400, act_size,
-            expl_noise=tf.constant(kwargs.get('expl_noise', 0.1)))
+            exploration_noise=tf.constant(
+                kwargs.get('exploration_noise', 0.1)))
 
         target_policy = Gaussian(
             low, high, obs_size, 400, act_size,
-            expl_noise=tf.constant(kwargs.get('expl_noise', 0.1)))
+            exploration_noise=tf.constant(
+                kwargs.get('exploration_noise', 0.1)))
 
         q_functions = [
-            FeedForward(obs_size + act_size, 400, 1),
-            FeedForward(obs_size + act_size, 400, 1)]
+            QFunction(obs_size, act_size),
+            QFunction(obs_size, act_size)]
 
         target_q_functions = [
-            FeedForward(obs_size + act_size, 400, 1),
-            FeedForward(obs_size + act_size, 400, 1)]
+            QFunction(obs_size, act_size),
+            QFunction(obs_size, act_size)]
 
         alg = TD3(
             policy,
