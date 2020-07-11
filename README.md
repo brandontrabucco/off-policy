@@ -36,9 +36,9 @@ python train.py --logdir ant \
                 --log_interval 10000
 ```
 
-### Experiment Checkpoints
+### Checkpoints
 
-Checkpoints and diagnostic information will be saved in a new `ant` folder given by the `--logdir` command line argument. This folder will contain a file with a name like `events.out.tfevents`, and several checkpoints with a name like `ckpt-`. 
+Checkpoints and diagnostic information will be saved in a new `ant` folder given by the `--logdir` command line argument. This folder will contain a file with a name like `events.out.tfevents`, and several checkpoints with a name like `ckpt-`. By default, when training is initialized, an existing checkpoint will be searched for and loaded from the `--logdir` folder, which includes the replay buffer, optimizer states, and neural network weights.
 
 ### Visualization
 
@@ -48,7 +48,7 @@ Diagnostic information is recorded using tensorboard, and can be visualized usin
 tensorboard --logdir ant
 ```
 
-### Implementing Your Algorithms Here
+### Implementing Your Algorithms
 
 The heavy lifting in this framework is done in `sac.py`, which manages several neural networks, q functions and policies. Most common off-policy reinforcement learning algorithms can be implemented by modifying the `SAC` class. Alternatively, if you require more sophisticated behavior, such as simulating rollouts from the environment using a fitted dynamics model, you would modify `trainer.py`.
 
