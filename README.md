@@ -38,7 +38,7 @@ python train.py --logdir ant \
 
 ### Checkpoints
 
-Checkpoints and diagnostic information will be saved in a new `ant` folder given by the `--logdir` command line argument. This folder will contain a file with a name like `events.out.tfevents`, and several checkpoints with a name like `ckpt-`. When training initializes, an existing checkpoint will be loaded from the `--logdir` folder, which includes the replay buffer, optimizers, and weights.
+Checkpoints and diagnostic information will be saved in a new `ant` folder given by the `--logdir` command line argument. This folder will contain a file with a name like `events.out.tfevents.1594452506.desktop.9612.13.v2`, and several checkpoints with a name like `ckpt-100001.data-00000-of-00004`. When training initializes, an existing checkpoint will be loaded from the `--logdir` folder, which includes the replay buffer, optimizers, and neural network weights.
 
 ### Visualization
 
