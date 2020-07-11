@@ -1,8 +1,9 @@
-from offpolicy import train
+from offpolicy import train, DEFAULT_KWARGS
 import gym
 import sys
 import os
 import json
+import copy
 
 
 def parse_args(args):
@@ -72,10 +73,11 @@ def parse_args(args):
 
 if __name__ == "__main__":
 
-    kwargs = parse_args(sys.argv[1:])
-    logdir = kwargs.pop('logdir', './ant_sac')
+    kwargs = copy.copy(DEFAULT_KWARGS)
+    kwargs.update(parse_args(sys.argv[1:]))
+    logdir = kwargs.pop('logdir', './ant')
 
-    # save the hyper parameters used for this experiment
+    # load existing hyper params
     path = os.path.join(logdir, "kwargs.json")
     os.makedirs(logdir, exist_ok=True)
     if os.path.isfile(path):
@@ -83,13 +85,11 @@ if __name__ == "__main__":
             existing_kwargs = json.load(f)
             existing_kwargs.update(kwargs)
             kwargs = existing_kwargs
+
+    # save hyper params
     with open(path, "w") as f:
         json.dump(kwargs, f)
 
+    # train a policy using soft actor critic
     env = kwargs.pop('env', 'Ant-v2')
-    alg = kwargs.pop('alg', 'SAC')
-    train(logdir,
-          gym.make(env),
-          gym.make(env),
-          alg,
-          **kwargs)
+    train(logdir, gym.make(env), gym.make(env), **kwargs)

@@ -4,9 +4,11 @@ import numpy as np
 import gym
 
 
-class Box(gym.spaces.Space):
+class StaticGraphBox(gym.spaces.Space):
 
-    def __init__(self, low, high):
+    def __init__(self,
+                 low,
+                 high):
         """Create a space that supports tensorflow operations
         and sampling tensorflow tensors
 
@@ -18,7 +20,7 @@ class Box(gym.spaces.Space):
             a tensor that specifies the upper bound for the space
         """
 
-        super(Box, self).__init__(None, None)
+        super(StaticGraphBox, self).__init__(None, None)
         self.low = tf.convert_to_tensor(low, dtype=tf.float32)
         self.high = tf.convert_to_tensor(high, dtype=tf.float32)
         self.shape = self.low.get_shape()
@@ -47,7 +49,8 @@ class Box(gym.spaces.Space):
             tf.logical_and(self.lb, self.ub), self.uniform.sample(), samples)
 
     @tf.function
-    def contains(self, x):
+    def contains(self,
+                 x):
         """Check if a tensorflow tensor is contained within the upper
         and lower bounds of this space
 
@@ -61,9 +64,10 @@ class Box(gym.spaces.Space):
             tf.greater_equal(x, self.low), tf.less_equal(x, self.high))
 
 
-class Env(gym.Env):
+class StaticGraphEnv(gym.Env):
 
-    def __init__(self, env):
+    def __init__(self,
+                 env):
         """Create an in-graph environment with the same API as the gym.Env
         class, but with static graph operations
 
@@ -75,19 +79,21 @@ class Env(gym.Env):
 
         self.env = env
         self.reward_range = tf.convert_to_tensor(self.env.reward_range)
-        self.observation_space = Box(self.env.observation_space.low,
-                                     self.env.observation_space.high)
-        self.action_space = Box(self.env.action_space.low,
-                                self.env.action_space.high)
+        self.observation_space = StaticGraphBox(
+            self.env.observation_space.low, self.env.observation_space.high)
+        self.action_space = StaticGraphBox(
+            self.env.action_space.low, self.env.action_space.high)
 
-    def _step(self, action):
+    def _step(self,
+              action):
         obs, r, d = self.env.step(action)[:3]
         d = d or not np.all(np.isfinite(obs)) or not np.isfinite(r)
         return obs.astype(
             np.float32), np.array([r], np.float32), np.array([d], np.bool)
 
     @tf.function
-    def step(self, action):
+    def step(self,
+             action):
         """Create an in-graph operations that updates a gym.Env with
         actions sampled from an agent
 
@@ -128,5 +134,5 @@ class Env(gym.Env):
         """
 
         img = tf.numpy_function(self._render, [], tf.float32)
-        img.set_shape([128, 128, 3])
+        img.set_shape(tf.TensorShape([128, 128, 3]))
         return img

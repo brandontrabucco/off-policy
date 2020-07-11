@@ -3,7 +3,10 @@ import tensorflow as tf
 
 class ReplayBuffer(tf.Module):
 
-    def __init__(self, capacity, obs_size, act_size):
+    def __init__(self,
+                 capacity,
+                 obs_size,
+                 act_size):
         """A static graph replay buffer that stores samples collected
         from a policy in an environment
 
@@ -25,10 +28,14 @@ class ReplayBuffer(tf.Module):
         self.act_size = act_size
 
         # prepare a storage memory for samples
-        self.obs = tf.Variable(tf.zeros([capacity, obs_size], tf.dtypes.float32))
-        self.act = tf.Variable(tf.zeros([capacity, act_size], tf.dtypes.float32))
-        self.reward = tf.Variable(tf.zeros([capacity, 1], tf.dtypes.float32))
-        self.done = tf.Variable(tf.zeros([capacity, 1], tf.dtypes.bool))
+        self.obs = tf.Variable(
+            tf.zeros([capacity, obs_size], tf.dtypes.float32))
+        self.act = tf.Variable(
+            tf.zeros([capacity, act_size], tf.dtypes.float32))
+        self.reward = tf.Variable(
+            tf.zeros([capacity, 1], tf.dtypes.float32))
+        self.done = tf.Variable(
+            tf.zeros([capacity, 1], tf.dtypes.bool))
 
         # save size statistics for the buffer
         self.head = tf.Variable(tf.constant(0))
@@ -36,7 +43,11 @@ class ReplayBuffer(tf.Module):
         self.step = tf.Variable(tf.constant(0))
 
     @tf.function
-    def insert(self, obs, act, reward, done):
+    def insert(self,
+               obs,
+               act,
+               reward,
+               done):
         """Insert a single sample collected from the environment into
         the replay buffer at the current head position
 
@@ -84,7 +95,8 @@ class ReplayBuffer(tf.Module):
         self.step.assign(self.step + 1)
 
     @tf.function
-    def sample(self, batch_size):
+    def sample(self,
+               batch_size):
         """Samples a batch of training data from the replay buffer
         and returns the batch of data
 
