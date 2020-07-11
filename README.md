@@ -1,6 +1,6 @@
 # Off-Policy Reinforcement Learning
 
-A high-performing minimalist implementation of SAC meant for rapid prototyping. Have fun! -Brandon
+A high-performing minimalist implementation of SAC for rapid prototyping. Have fun! -Brandon
 
 ## Setup
 
