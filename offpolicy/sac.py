@@ -14,6 +14,7 @@ class SAC(object):
                  reward_scale=tf.constant(1.0),
                  discount=tf.constant(0.99),
                  tau=tf.constant(5e-3),
+                 target_entropy=tf.constant(-3e-2),
                  target_delay=tf.constant(1)):
         """An implementation of soft actor critic in static graph tensorflow
         with automatic entropy tuning
@@ -31,6 +32,7 @@ class SAC(object):
         self.reward_scale = reward_scale
         self.discount = discount
         self.tau = tau
+        self.target_entropy = target_entropy
         self.target_delay = target_delay
 
         # create training machinery for the policy
@@ -158,7 +160,7 @@ class SAC(object):
         act, log_pis = self.policy.sample([obs], return_log_probs=True)
         with tf.GradientTape() as tape:
             alpha_loss = -self.log_alpha * tf.stop_gradient(
-                log_pis - tf.cast(tf.shape(act)[-1], act.dtype))
+                log_pis + tf.reshape(self.target_entropy, [1, 1]))
             alpha_loss = tf.reduce_mean(alpha_loss)
         self.alpha_optimizer.apply_gradients(zip(
             tape.gradient(alpha_loss, [self.log_alpha]), [self.log_alpha]))
@@ -223,7 +225,7 @@ class SAC(object):
                 tuple(q([obs, _act]) for q in self.q_functions), axis=0),
             "bellman_targets": self.bellman_targets(reward, done, next_obs),
             "alpha_loss": -self.log_alpha * tf.stop_gradient(
-                _pis - tf.cast(tf.shape(act)[-1], act.dtype))}
+                _pis + tf.reshape(self.target_entropy, [1, 1]))}
         for n, (q, optim) in enumerate(
                 zip(self.q_functions, self.q_optimizers)):
             diagnostics[f"q_values_{n}"] = q([obs, act])

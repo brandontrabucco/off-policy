@@ -73,7 +73,7 @@ def parse_args(args):
 if __name__ == "__main__":
 
     kwargs = parse_args(sys.argv[1:])
-    logdir = kwargs.pop('logdir', './ant_sac')
+    logdir = kwargs.pop('logdir', './ant')
 
     # save the hyper parameters used for this experiment
     path = os.path.join(logdir, "kwargs.json")

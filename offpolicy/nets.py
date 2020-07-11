@@ -109,7 +109,7 @@ class TanhGaussian(FeedForward):
         """
 
         super(TanhGaussian, self).__init__(
-            input_size, hidden_size, output_size)
+            input_size, hidden_size, output_size * 2)
 
         self.low = low
         self.high = high

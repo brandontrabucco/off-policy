@@ -56,6 +56,7 @@ def train(logging_dir,
         reward_scale=tf.constant(kwargs.get('reward_scale', 1.0)),
         discount=tf.constant(kwargs.get('discount', 0.99)),
         tau=tf.constant(kwargs.get('tau', 5e-3)),
+        target_entropy=tf.constant(kwargs.get('target_entropy', -3e-2)),
         target_delay=tf.constant(kwargs.get('target_delay', 1)))
 
     b = ReplayBuffer(
