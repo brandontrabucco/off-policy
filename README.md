@@ -23,10 +23,12 @@ python train.py --logdir ant \
                 --alpha_lr 3e-4 \
                 --reward_scale 1.0 \
                 --discount 0.99 \
-                --tau 5e-3 \
+                --target_tau 5e-3 \
                 --target_entropy -8.0 \
                 --target_delay 1 \
                 --buffer_size 1000000 \
+                --normalize_tau 5e-3 \
+                --normalize_obs \
                 --episodes_per_eval 10 \
                 --warm_up_steps 10000 \
                 --batch_size 256 \
