@@ -15,6 +15,7 @@ DEFAULT_KWARGS = dict(
     target_entropy=-8.0,
     target_delay=1,
     buffer_size=1000000,
+    normalize_obs=True,
     episodes_per_eval=10,
     warm_up_steps=10000,
     batch_size=256,
@@ -85,6 +86,7 @@ def train(logging_dir,
 
     trainer = Trainer(
         training_env, eval_env, policy, b, alg,
+        normalize_obs=kwargs.get('normalize_obs', True),
         episodes_per_eval=kwargs.get('episodes_per_eval', 10),
         warm_up_steps=kwargs.get('warm_up_steps', 10000),
         batch_size=kwargs.get('batch_size', 256))
