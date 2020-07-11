@@ -6,10 +6,9 @@ for gpu in tf.config.experimental.list_physical_devices('GPU'):
 def train(logging_dir,
           training_env,
           eval_env,
-          alg,
           **kwargs):
     """Train a policy using an off policy reinforcement learning
-    algorithm such as SAC or TD3
+    algorithm such as SAC
 
     Args:
 
@@ -19,51 +18,66 @@ def train(logging_dir,
         an environment on which a policy shall be trained
     eval_env: gym.Env
         an environment on which a policy shall be evaluated
-    alg: str
-        a string identifier that indicates which algorithm to use
     """
 
     from offpolicy.replay_buffer import ReplayBuffer
-    from offpolicy.algorithms import get_algorithm
+    from offpolicy.nets import FeedForward
+    from offpolicy.nets import TanhGaussian
+    from offpolicy.sac import SAC
     from offpolicy.logger import Logger
-    from offpolicy.env import Env
+    from offpolicy.env import StaticGraphEnv
     from offpolicy.trainer import Trainer
 
     logger = Logger(logging_dir)
-    training_env = Env(training_env)
-    eval_env = Env(eval_env)
+    training_env = StaticGraphEnv(training_env)
+    eval_env = StaticGraphEnv(eval_env)
 
     act_size = training_env.action_space.shape[0]
     obs_size = training_env.observation_space.shape[0]
 
-    alg = get_algorithm(
-        alg,
+    policy = TanhGaussian(
         training_env.action_space.low,
         training_env.action_space.high,
-        obs_size,
-        act_size,
-        **kwargs)
+        obs_size, 256, act_size)
+
+    q_functions = [
+        FeedForward(obs_size + act_size, 256, 1),
+        FeedForward(obs_size + act_size, 256, 1)]
+
+    target_q_functions = [
+        FeedForward(obs_size + act_size, 256, 1),
+        FeedForward(obs_size + act_size, 256, 1)]
+
+    alg = SAC(
+        policy, q_functions, target_q_functions,
+        policy_lr=tf.constant(kwargs.get('policy_lr', 3e-4)),
+        q_lr=tf.constant(kwargs.get('q_lr', 3e-4)),
+        alpha_lr=tf.constant(kwargs.get('alpha_lr', 3e-4)),
+        reward_scale=tf.constant(kwargs.get('reward_scale', 1.0)),
+        discount=tf.constant(kwargs.get('discount', 0.99)),
+        tau=tf.constant(kwargs.get('tau', 5e-3)),
+        target_delay=tf.constant(kwargs.get('target_delay', 1)))
 
     b = ReplayBuffer(
         kwargs.get('buffer_size', 1000000), obs_size, act_size)
 
     trainer = Trainer(
-        training_env,
-        eval_env,
-        alg.policy,
-        b,
-        alg,
+        training_env, eval_env, policy, b, alg,
+        episodes_per_eval=kwargs.get('episodes_per_eval', 10),
         warm_up_steps=kwargs.get('warm_up_steps', 10000),
         batch_size=kwargs.get('batch_size', 256))
 
-    ckpt = tf.train.Checkpoint(**trainer.get_saveables())
     manager = tf.train.CheckpointManager(
-        ckpt, directory=logging_dir, max_to_keep=5)
+        tf.train.Checkpoint(**trainer.get_saveables()),
+        directory=logging_dir,
+        max_to_keep=kwargs.get('max_to_keep', 5))
     manager.restore_or_initialize()
 
     while b.step < kwargs.get('iterations', 1000000):
         trainer.train()
+
         if b.step % kwargs.get('log_interval', 10000) == 0:
             manager.save(checkpoint_number=b.step)
+
             for key, value in trainer.get_diagnostics().items():
                 logger.record(key, value, tf.cast(b.step, tf.int64))

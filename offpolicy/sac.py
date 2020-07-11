@@ -1,9 +1,8 @@
 import tensorflow as tf
 import tensorflow_probability as tfp
-from offpolicy.algorithms.algorithm import Algorithm
 
 
-class SAC(Algorithm):
+class SAC(object):
 
     def __init__(self,
                  policy,
@@ -87,7 +86,7 @@ class SAC(Algorithm):
             a tensor shaped [batch_size, obs_size] containing observations
         """
 
-        act, log_pis = self.policy.sample([next_obs], log_probs=True)
+        act, log_pis = self.policy.sample([next_obs], return_log_probs=True)
         next_q = tuple(q([next_obs, act]) for q in self.target_q_functions)
         next_q = tf.reduce_min(next_q, axis=0) - self.alpha * log_pis
         next_q = self.discount * (1.0 - tf.cast(done, next_q.dtype)) * next_q
@@ -135,7 +134,7 @@ class SAC(Algorithm):
         """
 
         with tf.GradientTape() as tape:
-            act, log_pis = self.policy.sample([obs], log_probs=True)
+            act, log_pis = self.policy.sample([obs], return_log_probs=True)
             q_log_targets = tuple(q([obs, act]) for q in self.q_functions)
             q_log_targets = tf.reduce_min(q_log_targets, axis=0)
             policy_loss = self.alpha * log_pis - q_log_targets
@@ -156,7 +155,7 @@ class SAC(Algorithm):
             a tensor shaped [batch_size, obs_size] containing observations
         """
 
-        act, log_pis = self.policy.sample([obs], log_probs=True)
+        act, log_pis = self.policy.sample([obs], return_log_probs=True)
         with tf.GradientTape() as tape:
             alpha_loss = -self.log_alpha * tf.stop_gradient(
                 log_pis - tf.cast(tf.shape(act)[-1], act.dtype))
@@ -217,15 +216,14 @@ class SAC(Algorithm):
             a dict containing tensors whose statistics will be summarized
         """
 
-        new_act, log_pis = self.policy.sample([obs], log_probs=True)
+        _act, _pis = self.policy.sample([obs], return_log_probs=True)
         diagnostics = {
-            "act": new_act, "log_pis": log_pis,
-            "done": tf.cast(done, tf.float32),
-            "policy_loss": self.alpha * log_pis - tf.reduce_min(
-                tuple(q([obs, new_act]) for q in self.q_functions), axis=0),
+            "act": _act, "log_pis": _pis, "done": tf.cast(done, tf.float32),
+            "policy_loss": self.alpha * _pis - tf.reduce_min(
+                tuple(q([obs, _act]) for q in self.q_functions), axis=0),
             "bellman_targets": self.bellman_targets(reward, done, next_obs),
             "alpha_loss": -self.log_alpha * tf.stop_gradient(
-                log_pis - tf.cast(tf.shape(act)[-1], act.dtype))}
+                _pis - tf.cast(tf.shape(act)[-1], act.dtype))}
         for n, (q, optim) in enumerate(
                 zip(self.q_functions, self.q_optimizers)):
             diagnostics[f"q_values_{n}"] = q([obs, act])

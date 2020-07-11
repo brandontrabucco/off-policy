@@ -8,7 +8,8 @@ class Trainer(object):
                  eval_env,
                  policy,
                  buffer,
-                 algorithm,
+                 sac,
+                 episodes_per_eval=10,
                  warm_up_steps=5000,
                  batch_size=256):
         """Create a training interface for an rl agent using
@@ -32,10 +33,12 @@ class Trainer(object):
         self.eval_env = eval_env
         self.policy = policy
         self.buffer = buffer
-        self.algorithm = algorithm
+        self.sac = sac
+
+        self.obs = tf.Variable(self.training_env.reset())
+        self.episodes_per_eval = episodes_per_eval
         self.warm_up_steps = warm_up_steps
         self.batch_size = batch_size
-        self.obs = tf.Variable(self.training_env.reset())
 
     @tf.function
     def train(self):
@@ -44,7 +47,7 @@ class Trainer(object):
         """
 
         if tf.greater_equal(self.buffer.step, self.warm_up_steps):
-            self.algorithm.train(*self.buffer.sample(self.batch_size))
+            self.sac.train(*self.buffer.sample(self.batch_size))
             act = self.policy.sample([self.obs[tf.newaxis]])[0]
         else:
             act = self.training_env.action_space.sample()
@@ -54,7 +57,8 @@ class Trainer(object):
             self.training_env.reset() if done else next_obs)
 
     @tf.function
-    def evaluate(self, num_paths):
+    def evaluate(self,
+                 num_paths):
         """Evaluate the current policy by collecting data over many episodes
         and returning the sum of rewards
 
@@ -84,7 +88,8 @@ class Trainer(object):
                 lengths += 1.0
             return_array = return_array.write(i, returns)
             length_array = length_array.write(i, lengths)
-        return return_array.stack(), length_array.stack()
+        return (return_array.stack(),
+                length_array.stack())
 
     @tf.function
     def get_diagnostics(self):
@@ -97,9 +102,10 @@ class Trainer(object):
             a dict containing tensors whose statistics will be summarized
         """
 
-        returns, lengths = self.evaluate(10)
-        return {"return": returns, "length": lengths,
-                **self.algorithm.get_diagnostics(
+        returns, lengths = self.evaluate(self.episodes_per_eval)
+        return {"return": returns,
+                "length": lengths,
+                **self.sac.get_diagnostics(
                     *self.buffer.sample(self.batch_size))}
 
     def get_saveables(self):
@@ -112,5 +118,6 @@ class Trainer(object):
             a dict containing stateful objects compatible with checkpoints
         """
 
-        return {"buffer": self.buffer, "policy": self.policy,
-                **self.algorithm.get_saveables()}
+        return {"buffer": self.buffer,
+                "policy": self.policy,
+                **self.sac.get_saveables()}

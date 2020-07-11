@@ -87,9 +87,7 @@ if __name__ == "__main__":
         json.dump(kwargs, f)
 
     env = kwargs.pop('env', 'Ant-v2')
-    alg = kwargs.pop('alg', 'SAC')
     train(logdir,
           gym.make(env),
           gym.make(env),
-          alg,
           **kwargs)
