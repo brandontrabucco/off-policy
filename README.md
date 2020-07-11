@@ -38,7 +38,7 @@ python train.py --logdir ant \
 
 ### Experiment Checkpoints
 
-Going with the previous example, checkpoints and diagnostic information will be saved in a new `ant` folder given by the `--logdir` command line argument. This folder will contain a file with a name like `events.out.tfevents.*`, and several checkpoints with a name like `ckpt-*.*`. 
+Checkpoints and diagnostic information will be saved in a new `ant` folder given by the `--logdir` command line argument. This folder will contain a file with a name like `events.out.tfevents`, and several checkpoints with a name like `ckpt-`. 
 
 ### Visualization
 
@@ -50,6 +50,6 @@ tensorboard --logdir ant
 
 ### Implementing Your Algorithms Here
 
-The heavy lifting in this framework is done in `sac.py`, which is a class that manages several neural networks, like two q functions and a policy. Most common off-policy reinforcemrnt learning algorithms can be implemented by modifying the `SAC` class. Alternatively, if you require more sophisticated behavior, such as simulating rollouts from the environment using a fitted dynamics model, which is used in `MBPO`, you might be interested in modifying the `trainer.py` file.
+The heavy lifting in this framework is done in `sac.py`, which manages several neural networks, q functions and policies. Most common off-policy reinforcement learning algorithms can be implemented by modifying the `SAC` class. Alternatively, if you require more sophisticated behavior, such as simulating rollouts from the environment using a fitted dynamics model, which is used in `MBPO`, you might be interested in modifying the `trainer.py` file.
 
 The final step is then to modify the `train()` function in the `__init__.py` to build your algorithm. By default, the framework supports and will save arbitrary command line arguments, so there is no need to modify the entry point in `train.py` with custom behavior.
