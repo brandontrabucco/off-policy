@@ -53,3 +53,7 @@ tensorboard --logdir ant
 The heavy lifting in this framework is done in `sac.py`, which manages several neural networks, q functions and policies. Most common off-policy reinforcement learning algorithms can be implemented by modifying the `SAC` class. Alternatively, if you require more sophisticated behavior, such as simulating rollouts from the environment using a fitted dynamics model, you would modify `trainer.py`.
 
 The final step is then to modify the `train()` function in the `__init__.py` to build your algorithm. By default, the framework supports and will save arbitrary command line arguments, so there is no need to modify the entry point in `train.py` with custom behavior. A `kwargs.json` file with your hyperparameters will be saved.
+
+### Efficiency 
+
+The framework is currently optimized for GPU performance, and is typically faster when using a GPU, even for state-based experiments.
