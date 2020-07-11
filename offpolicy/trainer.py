@@ -10,6 +10,7 @@ class Trainer(object):
                  buffer,
                  sac,
                  normalize_obs=True,
+                 tau=tf.constant(5e-3),
                  episodes_per_eval=10,
                  warm_up_steps=5000,
                  batch_size=256):
@@ -37,6 +38,7 @@ class Trainer(object):
         self.sac = sac
 
         self.normalize_obs = normalize_obs
+        self.tau = tau
         self.episodes_per_eval = episodes_per_eval
         self.warm_up_steps = warm_up_steps
         self.batch_size = batch_size
@@ -63,16 +65,28 @@ class Trainer(object):
             x - self.running_mean) / self.running_std
 
     @tf.function
+    def update_statistics(self):
+        """Update the normalization statistics used for normalizing
+        observations provided to the policy
+        """
+
+        self.running_mean.assign(
+            (1.0 - self.tau) * tf.convert_to_tensor(self.running_mean) +
+            self.tau * tf.math.reduce_mean(
+                self.buffer.obs, axis=0, keepdims=True))
+        self.running_std.assign(
+            (1.0 - self.tau) * tf.convert_to_tensor(self.running_std) +
+            self.tau * tf.math.reduce_std(
+                self.buffer.obs - self.running_mean, axis=0, keepdims=True))
+
+    @tf.function
     def train(self):
         """Train the current policy by collecting data over many episodes
         and running the provided rl algorithm
         """
 
         if tf.greater_equal(self.buffer.step, self.warm_up_steps):
-            self.running_mean.assign(
-                tf.math.reduce_mean(self.buffer.obs, axis=0, keepdims=True))
-            self.running_std.assign(tf.math.reduce_std(
-                self.buffer.obs - self.running_mean, axis=0, keepdims=True))
+            self.update_statistics()
             i, obs, act, r, d, next_obs = self.buffer.sample(self.batch_size)
             self.sac.train(i, self.n(obs), act, r, d, self.n(next_obs))
             act = self.policy.sample([self.n(self.obs[tf.newaxis])])[0]
