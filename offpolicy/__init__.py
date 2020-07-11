@@ -3,6 +3,27 @@ for gpu in tf.config.experimental.list_physical_devices('GPU'):
     tf.config.experimental.set_memory_growth(gpu, True)
 
 
+DEFAULT_KWARGS = dict(
+    logdir='ant',
+    env='Ant-v2',
+    policy_lr=3e-4,
+    q_lr=3e-4,
+    alpha_lr=3e-4,
+    reward_scale=1.0,
+    discount=0.99,
+    tau=5e-3,
+    target_entropy=-3e-2,
+    target_delay=1,
+    buffer_size=1000000,
+    episodes_per_eval=10,
+    warm_up_steps=10000,
+    batch_size=256,
+    max_to_keep=5,
+    checkpoint_interval=10000,
+    iterations=1000000,
+    log_interval=10000)
+
+
 def train(logging_dir,
           training_env,
           eval_env,
@@ -71,14 +92,14 @@ def train(logging_dir,
     manager = tf.train.CheckpointManager(
         tf.train.Checkpoint(**trainer.get_saveables()),
         directory=logging_dir,
-        max_to_keep=kwargs.get('max_to_keep', 5))
-    manager.restore_or_initialize()
+        step_counter=b.step,
+        max_to_keep=kwargs.get('max_to_keep', 5),
+        checkpoint_interval=kwargs.get('checkpoint_interval', 1000))
 
+    manager.restore_or_initialize()
     while b.step < kwargs.get('iterations', 1000000):
         trainer.train()
-
+        manager.save(checkpoint_number=b.step)
         if b.step % kwargs.get('log_interval', 10000) == 0:
-            manager.save(checkpoint_number=b.step)
-
             for key, value in trainer.get_diagnostics().items():
                 logger.record(key, value, tf.cast(b.step, tf.int64))
