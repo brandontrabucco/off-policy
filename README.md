@@ -42,7 +42,7 @@ Checkpoints and diagnostic information will be saved in a new `ant` folder given
 
 ### Visualization
 
-Diagnostic information is recorded using tensorboard, and can be visualizxed using tensorboard. 
+Diagnostic information is recorded using tensorboard, and can be visualized using tensorboard. 
 
 ```bash
 tensorboard --logdir ant
