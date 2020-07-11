@@ -38,13 +38,11 @@ def parse_args(args):
             new_key, val = a.split('=')
 
         # double hyphen, no arg
-        # single hyphen, no arg
-        elif a.startswith('-') and (not b or b.startswith('-')):
+        elif a.startswith('--') and (not b or b.startswith('--')):
             val = True
 
         # double hypen, arg
-        # single hypen, arg
-        elif a.startswith('-') and b and not b.startswith('-'):
+        elif a.startswith('--') and b and not b.startswith('--'):
             val = b
 
         # there are no args left
