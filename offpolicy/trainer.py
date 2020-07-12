@@ -10,7 +10,7 @@ class Trainer(object):
                  buffer,
                  sac,
                  normalize_obs=True,
-                 normalize_tau=tf.constant(5e-3),
+                 normalize_tau=tf.constant(3e-4),
                  episodes_per_eval=10,
                  warm_up_steps=5000,
                  batch_size=256):
@@ -65,18 +65,16 @@ class Trainer(object):
             x - self.running_mean) / self.running_std
 
     @tf.function
-    def update_normalizer(self):
+    def update_normalizer(self, tau):
         """Update the normalization statistics used for normalizing
         observations provided to the policy
         """
 
         self.running_mean.assign(
-            (1.0 - self.normalize_tau) * self.running_mean +
-            self.normalize_tau * tf.math.reduce_mean(
-                self.buffer.obs, axis=0, keepdims=True))
+            (1.0 - tau) * self.running_mean +
+            tau * tf.reduce_mean(self.buffer.obs, axis=0, keepdims=True))
         self.running_std.assign(
-            (1.0 - self.normalize_tau) * self.running_std +
-            self.normalize_tau * tf.math.reduce_std(
+            (1.0 - tau) * self.running_std + tau * tf.math.reduce_std(
                 self.buffer.obs - self.running_mean, axis=0, keepdims=True))
 
     @tf.function
@@ -86,11 +84,12 @@ class Trainer(object):
         """
 
         if tf.greater_equal(self.buffer.step, self.warm_up_steps):
-            self.update_normalizer()
+            self.update_normalizer(self.normalize_tau)
             i, obs, act, r, d, next_obs = self.buffer.sample(self.batch_size)
             self.sac.train(i, self.n(obs), act, r, d, self.n(next_obs))
             act = self.policy.sample([self.n(self.obs[tf.newaxis])])[0]
         else:
+            self.update_normalizer(tf.constant(1.0))
             act = self.training_env.action_space.sample()
         next_obs, reward, done = self.training_env.step(act)
         self.buffer.insert(self.obs, act, reward, done)

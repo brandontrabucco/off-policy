@@ -13,7 +13,7 @@ class SAC(object):
                  alpha_lr=tf.constant(3e-4),
                  reward_scale=tf.constant(1.0),
                  discount=tf.constant(0.99),
-                 tau=tf.constant(5e-3),
+                 target_tau=tf.constant(5e-3),
                  target_entropy=tf.constant(-3e-2),
                  target_delay=tf.constant(1)):
         """An implementation of soft actor critic in static graph tensorflow
@@ -31,7 +31,7 @@ class SAC(object):
 
         self.reward_scale = reward_scale
         self.discount = discount
-        self.tau = tau
+        self.target_tau = target_tau
         self.target_entropy = target_entropy
         self.target_delay = target_delay
 
@@ -190,7 +190,7 @@ class SAC(object):
         self.update_policy(obs)
         self.update_alpha(obs)
         if i % self.target_delay == 0:
-            self.update_target(tau=self.tau)
+            self.update_target(tau=self.target_tau)
 
     @tf.function
     def get_diagnostics(self, i, obs, act, reward, done, next_obs):

@@ -78,8 +78,8 @@ def train(logging_dir,
         alpha_lr=tf.constant(kwargs.get('alpha_lr', 3e-4)),
         reward_scale=tf.constant(kwargs.get('reward_scale', 1.0)),
         discount=tf.constant(kwargs.get('discount', 0.99)),
-        tau=tf.constant(kwargs.get('target_tau', 5e-3)),
-        target_entropy=tf.constant(kwargs.get('target_entropy', -3e-2)),
+        target_tau=tf.constant(kwargs.get('target_tau', 5e-3)),
+        target_entropy=tf.constant(kwargs.get('target_entropy', -8.0)),
         target_delay=tf.constant(kwargs.get('target_delay', 1)))
 
     b = ReplayBuffer(
@@ -88,7 +88,7 @@ def train(logging_dir,
     trainer = Trainer(
         training_env, eval_env, policy, b, alg,
         normalize_obs=kwargs.get('normalize_obs', True),
-        normalize_tau=tf.constant(kwargs.get('normalize_tau', 5e-3)),
+        normalize_tau=tf.constant(kwargs.get('normalize_tau', 3e-4)),
         episodes_per_eval=kwargs.get('episodes_per_eval', 10),
         warm_up_steps=kwargs.get('warm_up_steps', 10000),
         batch_size=kwargs.get('batch_size', 256))
