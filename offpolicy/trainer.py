@@ -10,7 +10,7 @@ class Trainer(object):
                  buffer,
                  sac,
                  normalize_obs=True,
-                 tau=tf.constant(5e-3),
+                 normalize_tau=tf.constant(5e-3),
                  episodes_per_eval=10,
                  warm_up_steps=5000,
                  batch_size=256):
@@ -38,20 +38,20 @@ class Trainer(object):
         self.sac = sac
 
         self.normalize_obs = normalize_obs
-        self.tau = tau
+        self.normalize_tau = normalize_tau
         self.episodes_per_eval = episodes_per_eval
         self.warm_up_steps = warm_up_steps
         self.batch_size = batch_size
 
-        self.obs = tf.Variable(self.training_env.reset())
+        self.obs = tf.Variable(
+            self.training_env.reset(), dtype=tf.dtypes.float32)
         self.running_mean = tf.Variable(
-            tf.zeros_like(self.obs[tf.newaxis]))
+            tf.zeros_like(self.obs[tf.newaxis]), dtype=tf.dtypes.float32)
         self.running_std = tf.Variable(
-            tf.ones_like(self.obs[tf.newaxis]))
+            tf.ones_like(self.obs[tf.newaxis]), dtype=tf.dtypes.float32)
 
     @tf.function
-    def n(self,
-          x):
+    def n(self, x):
         """Normalize an observation using the running normalization statistics
         calculated from samples in the replay buffer
 
@@ -65,18 +65,18 @@ class Trainer(object):
             x - self.running_mean) / self.running_std
 
     @tf.function
-    def update_statistics(self):
+    def update_normalizer(self):
         """Update the normalization statistics used for normalizing
         observations provided to the policy
         """
 
         self.running_mean.assign(
-            (1.0 - self.tau) * tf.convert_to_tensor(self.running_mean) +
-            self.tau * tf.math.reduce_mean(
+            (1.0 - self.normalize_tau) * self.running_mean +
+            self.normalize_tau * tf.math.reduce_mean(
                 self.buffer.obs, axis=0, keepdims=True))
         self.running_std.assign(
-            (1.0 - self.tau) * tf.convert_to_tensor(self.running_std) +
-            self.tau * tf.math.reduce_std(
+            (1.0 - self.normalize_tau) * self.running_std +
+            self.normalize_tau * tf.math.reduce_std(
                 self.buffer.obs - self.running_mean, axis=0, keepdims=True))
 
     @tf.function
@@ -86,7 +86,7 @@ class Trainer(object):
         """
 
         if tf.greater_equal(self.buffer.step, self.warm_up_steps):
-            self.update_statistics()
+            self.update_normalizer()
             i, obs, act, r, d, next_obs = self.buffer.sample(self.batch_size)
             self.sac.train(i, self.n(obs), act, r, d, self.n(next_obs))
             act = self.policy.sample([self.n(self.obs[tf.newaxis])])[0]
