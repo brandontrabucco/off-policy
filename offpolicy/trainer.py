@@ -9,8 +9,8 @@ class Trainer(object):
                  policy,
                  buffer,
                  sac,
-                 normalize_obs=True,
-                 normalize_tau=tf.constant(5e-3),
+                 normalized_obs=True,
+                 normalizer_tau=tf.constant(5e-3),
                  episodes_per_eval=10,
                  warm_up_steps=5000,
                  batch_size=256):
@@ -37,8 +37,8 @@ class Trainer(object):
         self.buffer = buffer
         self.sac = sac
 
-        self.normalize_obs = normalize_obs
-        self.normalize_tau = normalize_tau
+        self.normalized_obs = normalized_obs
+        self.normalizer_tau = normalizer_tau
         self.episodes_per_eval = episodes_per_eval
         self.warm_up_steps = warm_up_steps
         self.batch_size = batch_size
@@ -62,7 +62,7 @@ class Trainer(object):
         """
 
         v = tf.math.divide_no_nan(x - self.running_mean, self.running_std)
-        return x if not self.normalize_obs else v
+        return x if not self.normalized_obs else v
 
     @tf.function
     def update_normalizer(self, tau):
@@ -90,7 +90,7 @@ class Trainer(object):
             i, obs, act, r, d, next_obs = self.buffer.sample(self.batch_size)
             self.sac.train(i, self.n(obs), act, r, d, self.n(next_obs))
             act = self.policy.sample([self.n(self.obs[tf.newaxis])])[0]
-            self.update_normalizer(self.normalize_tau)
+            self.update_normalizer(self.normalizer_tau)
         else:
             act = self.training_env.action_space.sample()
             self.update_normalizer(tf.constant(1.0))

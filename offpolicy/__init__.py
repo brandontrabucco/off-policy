@@ -5,6 +5,7 @@ for gpu in tf.config.experimental.list_physical_devices('GPU'):
 
 DEFAULT_KWARGS = dict(
     logdir='ant',
+    seed=0,
     env='Ant-v2',
     policy_lr=3e-4,
     q_lr=3e-4,
@@ -15,8 +16,8 @@ DEFAULT_KWARGS = dict(
     target_entropy=-8.0,
     target_delay=1,
     buffer_size=1000000,
-    normalize_tau=5e-3,
-    normalize_obs=True,
+    normalizer_tau=5e-3,
+    normalized_obs=True,
     episodes_per_eval=10,
     warm_up_steps=10000,
     batch_size=256,
@@ -87,8 +88,8 @@ def train(logging_dir,
 
     trainer = Trainer(
         training_env, eval_env, policy, b, alg,
-        normalize_obs=kwargs.get('normalize_obs', True),
-        normalize_tau=tf.constant(kwargs.get('normalize_tau', 5e-3)),
+        normalized_obs=kwargs.get('normalized_obs', True),
+        normalizer_tau=tf.constant(kwargs.get('normalizer_tau', 5e-3)),
         episodes_per_eval=kwargs.get('episodes_per_eval', 10),
         warm_up_steps=kwargs.get('warm_up_steps', 10000),
         batch_size=kwargs.get('batch_size', 256))

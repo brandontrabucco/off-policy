@@ -1,4 +1,5 @@
 from offpolicy import train, DEFAULT_KWARGS
+import numpy as np
 import gym
 import sys
 import os
@@ -89,5 +90,6 @@ if __name__ == "__main__":
         json.dump(kwargs, f)
 
     # train a policy using soft actor critic
+    np.random.seed(kwargs.pop('seed', 0))
     env = kwargs.pop('env', 'Ant-v2')
     train(logdir, gym.make(env), gym.make(env), **kwargs)

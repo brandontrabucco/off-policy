@@ -13,10 +13,11 @@ pip install -e off-policy
 
 ## Usage
 
-The entry point for training is in the aptly named `train.py`. You can train a policy for an environment that implements `gym.Env`. Training supports a number of hyperparameters specified via the command line. For example, lets trian a policy for the gym `Ant-v2` environment.
+The entry point for training is in the aptly named `train.py`. You can train a policy for an environment that implements `gym.Env`. Training supports a number of hyperparameters specified via the command line. For example, lets train a policy for the gym `Ant-v2` environment.
 
 ```bash
 python train.py --logdir ant \
+                --seed 0 \
                 --env Ant-v2 \
                 --policy_lr 3e-4 \
                 --q_lr 3e-4 \
@@ -27,8 +28,8 @@ python train.py --logdir ant \
                 --target_delay 1 \
                 --target_tau 5e-3 \
                 --buffer_size 1000000 \
-                --normalize_obs \
-                --normalize_tau 5e-3 \
+                --normalized_obs \
+                --normalizer_tau 5e-3 \
                 --episodes_per_eval 10 \
                 --warm_up_steps 10000 \
                 --batch_size 256 \
