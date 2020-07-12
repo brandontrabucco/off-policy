@@ -159,7 +159,7 @@ class SAC(object):
 
         act, log_pis = self.policy.sample([obs], return_log_probs=True)
         with tf.GradientTape() as tape:
-            alpha_loss = -self.log_alpha * tf.stop_gradient(
+            alpha_loss = -self.alpha * tf.stop_gradient(
                 log_pis + tf.reshape(self.target_entropy, [1, 1]))
             alpha_loss = tf.reduce_mean(alpha_loss)
         self.alpha_optimizer.apply_gradients(zip(
@@ -220,11 +220,12 @@ class SAC(object):
 
         _act, _pis = self.policy.sample([obs], return_log_probs=True)
         diagnostics = {
-            "act": _act, "log_pis": _pis, "done": tf.cast(done, tf.float32),
+            "act": _act, "log_pis": _pis,
+            "alpha": self.alpha, "done": tf.cast(done, tf.float32),
             "policy_loss": self.alpha * _pis - tf.reduce_min(
                 tuple(q([obs, _act]) for q in self.q_functions), axis=0),
             "bellman_targets": self.bellman_targets(reward, done, next_obs),
-            "alpha_loss": -self.log_alpha * tf.stop_gradient(
+            "alpha_loss": -self.alpha * tf.stop_gradient(
                 _pis + tf.reshape(self.target_entropy, [1, 1]))}
         for n, (q, optim) in enumerate(
                 zip(self.q_functions, self.q_optimizers)):

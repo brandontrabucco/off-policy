@@ -88,7 +88,7 @@ def train(logging_dir,
     trainer = Trainer(
         training_env, eval_env, policy, b, alg,
         normalize_obs=kwargs.get('normalize_obs', True),
-        normalize_tau=tf.constant(kwargs.get('normalize_tau', 3e-4)),
+        normalize_tau=tf.constant(kwargs.get('normalize_tau', 5e-3)),
         episodes_per_eval=kwargs.get('episodes_per_eval', 10),
         warm_up_steps=kwargs.get('warm_up_steps', 10000),
         batch_size=kwargs.get('batch_size', 256))
