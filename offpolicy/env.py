@@ -87,7 +87,6 @@ class StaticGraphEnv(gym.Env):
     def _step(self,
               action):
         obs, r, d = self.env.step(action)[:3]
-        d = d or not np.all(np.isfinite(obs)) or not np.isfinite(r)
         return obs.astype(
             np.float32), np.array([r], np.float32), np.array([d], np.bool)
 
@@ -124,8 +123,7 @@ class StaticGraphEnv(gym.Env):
         return obs
 
     def _render(self):
-        return self.env.render(
-            mode='rgb_array', height=128, width=128).astype(np.float32)
+        return self.env.render(mode='human')
 
     @tf.function
     def render(self):
@@ -133,6 +131,4 @@ class StaticGraphEnv(gym.Env):
         the image pixels in a tensor
         """
 
-        img = tf.numpy_function(self._render, [], tf.float32)
-        img.set_shape(tf.TensorShape([128, 128, 3]))
-        return img
+        tf.numpy_function(self._render, [], [])

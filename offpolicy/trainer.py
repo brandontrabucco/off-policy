@@ -36,19 +36,17 @@ class Trainer(object):
         self.policy = policy
         self.buffer = buffer
         self.sac = sac
-
         self.normalized_obs = normalized_obs
         self.normalizer_tau = normalizer_tau
         self.episodes_per_eval = episodes_per_eval
         self.warm_up_steps = warm_up_steps
         self.batch_size = batch_size
-
         self.obs = tf.Variable(
-            self.training_env.reset(), dtype=tf.dtypes.float32)
+            self.training_env.reset(), dtype=tf.float32)
         self.running_mean = tf.Variable(
-            tf.zeros_like(self.obs[tf.newaxis]), dtype=tf.dtypes.float32)
+            tf.zeros_like(self.obs[tf.newaxis]), dtype=tf.float32)
         self.running_std = tf.Variable(
-            tf.ones_like(self.obs[tf.newaxis]), dtype=tf.dtypes.float32)
+            tf.ones_like(self.obs[tf.newaxis]), dtype=tf.float32)
 
     @tf.function
     def n(self, x):
@@ -61,8 +59,9 @@ class Trainer(object):
             a tensor containing observations that might be normalized here
         """
 
-        v = tf.math.divide_no_nan(x - self.running_mean, self.running_std)
-        return x if not self.normalized_obs else v
+        if self.normalized_obs:
+            x = tf.math.divide_no_nan(x - self.running_mean, self.running_std)
+        return x
 
     @tf.function
     def update_normalizer(self, tau):
@@ -75,10 +74,15 @@ class Trainer(object):
             a parameter to control the extent of the target update
         """
 
-        m = tf.math.reduce_mean(self.buffer.obs, axis=0, keepdims=True)
-        s = tf.math.reduce_std(self.buffer.obs - m, axis=0, keepdims=True)
-        self.running_mean.assign(tau * m + (1.0 - tau) * self.running_mean)
-        self.running_std.assign(tau * s + (1.0 - tau) * self.running_std)
+        if self.normalized_obs:
+            mean = tf.math.reduce_mean(
+                self.buffer.obs, axis=0, keepdims=True)
+            std = tf.math.reduce_std(
+                self.buffer.obs - mean, axis=0, keepdims=True)
+            self.running_mean.assign(
+                tau * mean + (1.0 - tau) * self.running_mean)
+            self.running_std.assign(
+                tau * std + (1.0 - tau) * self.running_std)
 
     @tf.function
     def train(self):
@@ -96,7 +100,9 @@ class Trainer(object):
             self.update_normalizer(tf.constant(1.0))
         next_obs, reward, done = self.training_env.step(act)
         self.buffer.insert(self.obs, act, reward, done)
-        self.obs.assign(self.training_env.reset() if done else next_obs)
+        if done:
+            next_obs = self.training_env.reset()
+        self.obs.assign(next_obs)
 
     @tf.function
     def evaluate(self,
