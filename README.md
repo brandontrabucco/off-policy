@@ -62,3 +62,9 @@ The final step is then to modify the `train()` function in the `__init__.py` to 
 ### Efficiency 
 
 The framework is typically faster when using a GPU, even for state-based experiments. For example, when training a policy for `Ant-v2`, reaching 1M gradient descent steps typically requires 3 hours when using an NVIDIA Titan X Pascal.
+
+### Performance
+
+Results with our SAC are comparable to the original paper.
+
+<p align="center"><img src="images/ant.png" align="middle" width="30%"/></p>

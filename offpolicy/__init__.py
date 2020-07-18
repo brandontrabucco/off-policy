@@ -4,16 +4,16 @@ for gpu in tf.config.experimental.list_physical_devices('GPU'):
 
 
 DEFAULT_KWARGS = dict(
-    logdir='ant-1',
+    logdir='cheetah-1',
     seed=1,
-    env='Ant-v2',
+    env='HalfCheetah-v2',
     policy_lr=3e-4,
     q_lr=3e-4,
     alpha_lr=3e-4,
     reward_scale=1.0,
     discount=0.99,
     target_tau=5e-3,
-    target_entropy=-18.420680744,
+    target_entropy=-12.0,
     target_delay=1,
     buffer_size=1000000,
     normalizer_tau=5e-3,
