@@ -67,4 +67,4 @@ The framework is typically faster when using a GPU, even for state-based experim
 
 Results with our SAC are comparable to the original paper.
 
-<p align="center"><img src="images/ant.png" align="middle" width="30%"/></p>
+<p align="center"><img src="images/ant.png" align="middle" width="30%"/><img src="images/cheetah.png" align="middle" width="30%"/></p>

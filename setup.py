@@ -4,8 +4,10 @@ from setuptools import setup
 
 setup(
     name='offpolicy',
-    version='0.1',
     description='Off-Policy Reinforcement Learning Algorithms',
+    license='MIT',
+    version='0.1',
+    zip_safe=True,
     include_package_data=True,
     packages=find_packages(),
     install_requires=[
@@ -13,5 +15,9 @@ setup(
         'tensorflow-probability',
         'gym[mujoco]',
         'numpy',
-        'dm-tree',
-        'scikit-video'])
+        'pandas',
+        'matplotlib',
+        'seaborn',
+        'click'],
+    entry_points={
+        'console_scripts': ('offpolicy=offpolicy.cli:cli',)})
