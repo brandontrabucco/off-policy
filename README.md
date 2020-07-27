@@ -16,27 +16,7 @@ pip install -e off-policy
 The entry point for training is in the aptly named `train`. You can train a policy for an environment that implements `gym.Env`. Training supports a number of hyperparameters specified via the command line. For example, lets train a policy for the gym `Ant-v2` environment.
 
 ```bash
-offpolicy train --logdir ant \
-                --seed 0 \
-                --env Ant-v2 \
-                --policy_lr 3e-4 \
-                --q_lr 3e-4 \
-                --alpha_lr 3e-4 \
-                --reward_scale 1.0 \
-                --discount 0.99 \
-                --target_entropy -8.0 \
-                --target_delay 1 \
-                --target_tau 5e-3 \
-                --buffer_size 1000000 \
-                --normalized_obs \
-                --normalizer_tau 5e-3 \
-                --episodes_per_eval 10 \
-                --warm_up_steps 10000 \
-                --batch_size 256 \
-                --max_to_keep 5 \
-                --checkpoint_interval 10000 \
-                --iterations 1000000 \
-                --log_interval 10000
+offpolicy train --logdir ant --seed 0 --env Ant-v2 --policy_lr 3e-4 --q_lr 3e-4 --alpha_lr 3e-4 --reward_scale 1.0 --discount 0.99 --target_entropy -8.0 --target_delay 1 --target_tau 5e-3 --buffer_size 1000000 --normalized_obs --normalizer_tau 5e-3 --episodes_per_eval 10 --warm_up_steps 10000 --batch_size 256 --max_to_keep 5 --checkpoint_interval 10000 --iterations 1000000 --log_interval 10000
 ```
 
 ### Checkpoints
