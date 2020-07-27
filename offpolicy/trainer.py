@@ -31,21 +31,26 @@ class Trainer(object):
             an rl algorithm that takes in batches of data in a train function
         """
 
+        # create the main algorithm variables
         self.training_env = training_env
         self.eval_env = eval_env
         self.policy = policy
         self.buffer = buffer
         self.sac = sac
+
+        # create references to each of the hyper parameters
         self.normalized_obs = normalized_obs
         self.normalizer_tau = normalizer_tau
         self.episodes_per_eval = episodes_per_eval
         self.warm_up_steps = warm_up_steps
         self.batch_size = batch_size
+
+        # create the non trainable variables in this layer
         self.obs = tf.Variable(
             self.training_env.reset(), dtype=tf.float32)
-        self.running_mean = tf.Variable(
+        self.mean = tf.Variable(
             tf.zeros_like(self.obs[tf.newaxis]), dtype=tf.float32)
-        self.running_std = tf.Variable(
+        self.std = tf.Variable(
             tf.ones_like(self.obs[tf.newaxis]), dtype=tf.float32)
 
     @tf.function
@@ -60,7 +65,7 @@ class Trainer(object):
         """
 
         if self.normalized_obs:
-            x = tf.math.divide_no_nan(x - self.running_mean, self.running_std)
+            x = tf.math.divide_no_nan(x - self.mean, self.std)
         return x
 
     @tf.function
@@ -74,15 +79,17 @@ class Trainer(object):
             a parameter to control the extent of the target update
         """
 
-        if self.normalized_obs:
-            mean = tf.math.reduce_mean(
-                self.buffer.obs, axis=0, keepdims=True)
-            std = tf.math.reduce_std(
-                self.buffer.obs - mean, axis=0, keepdims=True)
-            self.running_mean.assign(
-                tau * mean + (1.0 - tau) * self.running_mean)
-            self.running_std.assign(
-                tau * std + (1.0 - tau) * self.running_std)
+        if self.normalized_obs and tf.greater_equal(
+                self.buffer.size, self.warm_up_steps):
+
+            # slice out only the valid observations in the buffer
+            obs = self.buffer.obs[:self.buffer.size]
+            mean = tf.reduce_mean(obs, axis=0, keepdims=True)
+            std = tf.math.reduce_std(obs - mean, axis=0, keepdims=True)
+
+            # track a moving average of the observation mean and variance
+            self.mean.assign(tau * mean + (1.0 - tau) * self.mean)
+            self.std.assign(tau * std + (1.0 - tau) * self.std)
 
     @tf.function
     def train(self):
@@ -91,17 +98,26 @@ class Trainer(object):
         """
 
         if tf.greater_equal(self.buffer.step, self.warm_up_steps):
+
+            # if enough samples have collected train the policy
             i, obs, act, r, d, next_obs = self.buffer.sample(self.batch_size)
             self.sac.train(i, self.n(obs), act, r, d, self.n(next_obs))
             act = self.policy.sample([self.n(self.obs[tf.newaxis])])[0]
             self.update_normalizer(self.normalizer_tau)
+
         else:
+
+            # otherwise explore uniformly
             act = self.training_env.action_space.sample()
             self.update_normalizer(tf.constant(1.0))
+
+        # collect an additional sample from the buffer
         next_obs, reward, done = self.training_env.step(act)
-        self.buffer.insert(self.obs, act, reward, done)
         if done:
             next_obs = self.training_env.reset()
+
+        # insert the sample into the buffer
+        self.buffer.insert(self.obs, act, reward, done)
         self.obs.assign(next_obs)
 
     @tf.function
@@ -123,19 +139,27 @@ class Trainer(object):
             a tensor containing the length of episodes that were sampled
         """
 
+        # keep track of a list of returns and episode lengths
         return_array = tf.TensorArray(tf.dtypes.float32, size=num_paths)
         length_array = tf.TensorArray(tf.dtypes.float32, size=num_paths)
+
         for i in tf.range(num_paths):
+
+            # reset the environment
             obs, done = self.eval_env.reset(), tf.constant([False])
             returns = tf.constant([0.0])
             lengths = tf.constant([0.0])
+
+            # roll out the environment using mean actions
             while tf.logical_not(done):
                 act = self.policy.mean([self.n(obs[tf.newaxis])])[0]
                 obs, rew, done = self.eval_env.step(act)
                 returns += rew
                 lengths += 1.0
+
             return_array = return_array.write(i, returns)
             length_array = length_array.write(i, lengths)
+
         return return_array.stack(), length_array.stack()
 
     @tf.function
@@ -152,8 +176,7 @@ class Trainer(object):
         returns, lengths = self.evaluate(self.episodes_per_eval)
         i, obs, act, r, d, next_obs = self.buffer.sample(self.batch_size)
         return {"return": returns, "length": lengths,
-                "running_mean": self.running_mean,
-                "running_std": self.running_std,
+                "running_mean": self.mean, "running_std": self.std,
                 **self.sac.get_diagnostics(
                     i, self.n(obs), act, r, d, self.n(next_obs))}
 
@@ -168,6 +191,5 @@ class Trainer(object):
         """
 
         return {"buffer": self.buffer, "policy": self.policy,
-                "running_mean": self.running_mean,
-                "running_std": self.running_std,
+                "running_mean": self.mean, "running_std": self.std,
                 **self.sac.get_saveables()}

@@ -4,9 +4,9 @@ for gpu in tf.config.experimental.list_physical_devices('GPU'):
 
 
 DEFAULT_KWARGS = dict(
-    logdir='cheetah-1',
+    logdir='hopper',
     seed=1,
-    env='HalfCheetah-v2',
+    env='Hopper-v2',
     policy_lr=3e-4,
     q_lr=3e-4,
     alpha_lr=3e-4,
@@ -16,14 +16,14 @@ DEFAULT_KWARGS = dict(
     target_entropy=-6.0,
     target_delay=1,
     buffer_size=1000000,
-    normalizer_tau=5e-3,
     normalized_obs=True,
+    normalizer_tau=5e-3,
     episodes_per_eval=10,
     warm_up_steps=10000,
-    batch_size=256,
-    max_to_keep=5,
+    batch_size=128,
+    max_to_keep=1,
     checkpoint_interval=10000,
-    iterations=10000000,
+    iterations=1000000,
     log_interval=10000)
 
 
