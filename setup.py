@@ -11,7 +11,7 @@ setup(
     include_package_data=True,
     packages=find_packages(),
     install_requires=[
-        'tensorflow==2.2',
+        'tensorflow==2.2.1',
         'tensorflow-probability',
         'gym[mujoco]',
         'numpy',
