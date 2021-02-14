@@ -6,11 +6,9 @@ import gym
 
 class StaticGraphBox(gym.spaces.Space):
 
-    def __init__(self,
-                 low,
-                 high):
-        """Create a space that supports tensorflow operations
-        and sampling tensorflow tensors
+    def __init__(self, low: tf.Tensor, high: tf.Tensor):
+        """Create a space that supports TensorFlow operations
+        and sampling TensorFlow tensors
 
         Args:
 
@@ -42,16 +40,16 @@ class StaticGraphBox(gym.spaces.Space):
         the entire space defined by low and high
         """
 
-        samples = self.normal.sample()
-        samples = tf.where(self.lb,  self.exp.sample() + self.low, samples)
-        samples = tf.where(self.ub, -self.exp.sample() + self.high, samples)
-        return tf.where(
-            tf.logical_and(self.lb, self.ub), self.uniform.sample(), samples)
+        normal, exp = self.normal.sample(), self.exp.sample()
+        uniform = self.uniform.sample()
+        samples = tf.where(self.lb, self.low + exp, normal)
+        samples = tf.where(self.ub, self.high - exp, samples)
+        return tf.where(tf.logical_and(
+            self.lb, self.ub), uniform, samples)
 
     @tf.function
-    def contains(self,
-                 x):
-        """Check if a tensorflow tensor is contained within the upper
+    def contains(self, x):
+        """Check if a TensorFlow tensor is contained within the upper
         and lower bounds of this space
 
         Args:
@@ -60,14 +58,14 @@ class StaticGraphBox(gym.spaces.Space):
             a tensor that shall be compared with the upper and lower bounds
         """
 
-        return tf.logical_and(
-            tf.greater_equal(x, self.low), tf.less_equal(x, self.high))
+        return tf.logical_and(tf.greater_equal(x, self.low),
+                              tf.less_equal(x, self.high))
 
 
 class StaticGraphEnv(gym.Env):
 
-    def __init__(self,
-                 env):
+    def __init__(self, env: gym.Env,
+                 info_names: tuple = (), info_shape: tuple = ()):
         """Create an in-graph environment with the same API as the gym.Env
         class, but with static graph operations
 
@@ -75,46 +73,138 @@ class StaticGraphEnv(gym.Env):
 
         wrapped_env: gym.Env
             an OpenAI Gym environment with step, reset, and render functions
+        info_names: tuple[str]
+            a list of environment info keys to convert to TensorFlow
+        info_shape: tuple[list[int]]
+            a list of environment info shapes corresponding to the keys
         """
 
         self.env = env
-        self.reward_range = tf.convert_to_tensor(self.env.reward_range)
+        self.reward_range = tf.convert_to_tensor(env.reward_range)
         self.observation_space = StaticGraphBox(
-            self.env.observation_space.low, self.env.observation_space.high)
+            env.observation_space.low, env.observation_space.high)
         self.action_space = StaticGraphBox(
-            self.env.action_space.low, self.env.action_space.high)
+            env.action_space.low, env.action_space.high)
 
-    def _step(self,
-              action):
-        obs, r, d = self.env.step(action)[:3]
-        return obs.astype(
-            np.float32), np.array([r], np.float32), np.array([d], np.bool)
+        # create a buffer for storing intermediate values
+        self.obs = self.reward = self.done = self.info = None
+        self.info_names = info_names
+        self.info_shape = info_shape
+        self.info_types = [tf.float32] * len(self.info_names)
+
+    def buffered_step(self, action):
+        """Perform a step with the wrapped gym environment and store
+        observations, rewards, and env info locally
+
+        Args:
+
+        action: np.float32
+            a tensor that represents a single action sampled from an agent
+        """
+
+        self.obs, self.reward, self.done, self.info = self.env.step(action)
+
+    def get_data(self):
+        """Convert observations, rewards, and env info into a format that
+        can be returned from a TensorFlow static graph function
+
+        Returns:
+
+        obs: np.float32
+            an array representing the observation in the latest time step
+        reward: np.float32
+            an array representing the reward attained in the latest time step
+        done: np.float32
+            an array representing when the episode reaches termination
+        info: list[np.float32]
+            an list of arrays representing information from the environment
+        """
+
+        return [self.obs.astype(np.float32),
+                np.reshape(self.reward, [1]).astype(np.float32),
+                np.reshape(self.done, [1]).astype(np.bool)] + [
+                   np.reshape(self.info[name],
+                              self.info_shape[idx]).astype(np.float32)
+                   for idx, name in enumerate(self.info_names)]
+
+    def convert_to_gym(self, obs, reward, done, info):
+        """Convert observations, rewards, and env info into a format that
+        can be returned from a TensorFlow static graph function
+
+        Args:
+
+        obs: tf.float32
+            a tensor representing the observation in the latest time step
+        reward: tf.float32
+            a tensor representing the reward attained in the latest time step
+        done: tf.float32
+            a tensor representing when the episode reaches termination
+        info: list[tf.float32]
+            a list of tensors representing information from the environment
+
+        Returns:
+
+        obs: tf.float32
+            a tensor representing the observation in the latest time step
+        reward: tf.float32
+            a tensor representing the reward attained in the latest time step
+        done: tf.float32
+            a tensor representing when the episode reaches termination
+        info: dict[str, tf.float32]
+            a dict of tensors representing information from the environment
+        """
+
+        # first format the obs and rewards
+        obs.set_shape(self.observation_space.shape)
+        reward.set_shape(tf.TensorShape([1]))
+        done.set_shape(tf.TensorShape([1]))
+
+        # second format the env info
+        info_dict = dict()
+        for idx, info_value in enumerate(info):
+            info_value.set_shape(tf.TensorShape(self.info_shape[idx]))
+            info_dict[self.info_names[idx]] = info_value
+        return obs, reward, done, info_dict
 
     @tf.function
-    def step(self,
-             action):
-        """Create an in-graph operations that updates a gym.Env with
-        actions sampled from an agent
+    def step(self, action):
+        """Create an in-graph operation that updates a gym.Env with
+        actions sampled from an agent and return the result
 
         Args:
 
         action: tf.dtypes.float32
             a tensor that represents a single action sampled from an agent
+
+        Returns:
+
+        obs: tf.float32
+            a tensor representing the observation in the latest time step
+        reward: tf.float32
+            a tensor representing the reward attained in the latest time step
+        done: tf.float32
+            a tensor representing when the episode reaches termination
+        info: dict[str, tf.float32]
+            a dict of tensors representing information from the environment
         """
 
-        obs, r, d = tf.numpy_function(self._step, [
-            action], [tf.float32, tf.float32, tf.bool])
-        obs.set_shape(self.observation_space.shape)
-        r.set_shape(tf.TensorShape([1]))
-        d.set_shape(tf.TensorShape([1]))
-        return obs, r, d
+        with tf.control_dependencies([
+                tf.numpy_function(self.buffered_step, [action], [])]):
+            obs, reward, done, *info = tf.numpy_function(
+                self.get_data, [], [
+                    tf.float32, tf.float32, tf.bool] + self.info_types)
+            return self.convert_to_gym(obs, reward, done, info)
 
     def _reset(self):
+        """Create an in-graph operation that resets a gym.Env and returns
+        the initial observation
+        """
+
         return self.env.reset().astype(np.float32)
 
     @tf.function
     def reset(self):
-        """Create an in-graph operations that resets a gym.Env and returns
+        """Create an in-graph operation that resets a gym.Env and returns
         the initial observation
         """
 
@@ -123,12 +213,16 @@ class StaticGraphEnv(gym.Env):
         return obs
 
     def _render(self):
+        """Create an in-graph operation that renders a gym.Env and displays
+        the rendered environment to the screen
+        """
+
         return self.env.render(mode='human')
 
     @tf.function
     def render(self):
-        """Create an in-graph operations that renders a gym.Env and returns
-        the image pixels in a tensor
+        """Create an in-graph operation that renders a gym.Env and displays
+        the rendered environment to the screen
         """
 
         tf.numpy_function(self._render, [], [])

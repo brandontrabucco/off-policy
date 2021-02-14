@@ -2,56 +2,65 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 
-class SAC(object):
+class SAC(tf.Module):
 
-    def __init__(self,
-                 policy,
-                 q_functions,
-                 target_q_functions,
-                 policy_lr=tf.constant(3e-4),
-                 q_lr=tf.constant(3e-4),
-                 alpha_lr=tf.constant(3e-4),
-                 reward_scale=tf.constant(1.0),
-                 discount=tf.constant(0.99),
-                 target_tau=tf.constant(5e-3),
-                 target_entropy=tf.constant(-3e-2),
-                 target_delay=tf.constant(1)):
-        """An implementation of soft actor critic in static graph tensorflow
+    def __init__(self, policy, qfs, target_qfs,
+                 policy_lr=3e-4, qf_lr=3e-4,
+                 alpha_lr=3e-4, reward_scale=1.0,
+                 discount=0.99, target_tau=5e-3,
+                 constraint=-3e-2, target_delay=1):
+        """An implementation of soft actor critic in static graph TensorFlow
         with automatic entropy tuning
 
         Args:
 
-        policy: tf.keras.model
+        policy: tf.keras.Model
             the policy neural network wrapped in a keras model
-        q_functions: list of tf.keras.model
+        q_functions: list of tf.keras.Model
             the q function neural network wrapped in a keras model
-        target_q_functions: list of tf.keras.model
+        target_q_functions: list of tf.keras.Model
             the target q function neural network wrapped in a keras model
+        policy_lr: tf.float32
+            the learning rate used to optimize the policy parameters
+        qf_lr: tf.float32
+            the learning rate used to optimize the q function parameters
+        alpha_lr: tf.float32
+            the learning rate used to optimize the lagrange multiplier
+        reward_scale: tf.float32
+            a scaling factor multiplied onto the environment reward
+        discount: tf.float32
+            the discount factor between 0 and 1
+        target_tau: tf.float32
+            the smoothing coefficient for the target q functions
+        constraint: tf.float32
+            the target value for the entropy of the policy
+        target_delay: tf.int32
+            the delay between updates to the target q functions
         """
 
-        self.reward_scale = reward_scale
-        self.discount = discount
-        self.target_tau = target_tau
-        self.target_entropy = target_entropy
-        self.target_delay = target_delay
+        super(SAC, self).__init__()
+        self.reward_scale = tf.constant(reward_scale)
+        self.discount = tf.constant(discount)
+        self.target_tau = tf.constant(target_tau)
+        self.constraint = tf.constant(constraint)
+        self.target_delay = tf.constant(target_delay)
 
         # create training machinery for the policy
         self.policy = policy
-        self.policy_optimizer = tf.optimizers.Adam(
-            learning_rate=policy_lr, name="policy_optimizer")
-
-        # create training machinery for the q functions
-        self.q_functions = q_functions
-        self.target_q_functions = target_q_functions
-        self.q_optimizers = tuple(
-            tf.optimizers.Adam(learning_rate=q_lr, name=f'q_{i}_optimizer')
-            for i, q in enumerate(self.q_functions))
+        self.policy_optim = \
+            tf.keras.optimizers.Adam(lr=policy_lr, name="policy_optimizer")
 
         # create training machinery for alpha
         self.log_alpha = tf.Variable(-2.30258509299)
         self.alpha = tfp.util.DeferredTensor(self.log_alpha, tf.exp)
-        self.alpha_optimizer = tf.optimizers.Adam(
-            learning_rate=alpha_lr, name='alpha_optimizer')
+        self.alpha_optim = \
+            tf.keras.optimizers.Adam(lr=alpha_lr, name='alpha_optimizer')
+
+        # create training machinery for the q functions
+        self.qfs = qfs
+        self.target_qfs = target_qfs
+        self.qfs_optim = tuple(tf.keras.optimizers.Adam(
+            lr=qf_lr, name=f'qf{i}_optim') for i, q in enumerate(self.qfs))
 
         # reset the target networks at the beginning of training
         self.update_target(tf.constant(1.0))
@@ -67,11 +76,14 @@ class SAC(object):
             a parameter to control the extent of the target update
         """
 
-        for q, q_t in zip(self.q_functions, self.target_q_functions):
+        # loop through every q function
+        for qf, qf_t in zip(self.qfs, self.target_qfs):
             for source_weight, target_weight in zip(
-                    q.trainable_variables, q_t.trainable_variables):
-                target_weight.assign(
-                    tau * source_weight + (1.0 - tau) * target_weight)
+                    qf.trainable_variables, qf_t.trainable_variables):
+
+                # assign the target weights to a moving average
+                target_weight.assign(tau * source_weight +
+                                     (1.0 - tau) * target_weight)
 
     @tf.function
     def bellman_targets(self, reward, done, next_obs):
@@ -88,9 +100,16 @@ class SAC(object):
             a tensor shaped [batch_size, obs_size] containing observations
         """
 
-        act, log_pis = self.policy.sample([next_obs], return_log_probs=True)
-        next_q = tuple(q([next_obs, act]) for q in self.target_q_functions)
+        # sample new actions from the current policy
+        distribution = self.policy(next_obs)
+        act = distribution.sample()
+        log_pis = distribution.log_prob(act)[:, tf.newaxis]
+
+        # predict q values for the very next state
+        next_q = [qf(tf.concat([next_obs, act], 1)) for qf in self.target_qfs]
         next_q = tf.reduce_min(next_q, axis=0) - self.alpha * log_pis
+
+        # form the bellman target using a single bellman backup
         next_q = self.discount * (1.0 - tf.cast(done, next_q.dtype)) * next_q
         return tf.stop_gradient(next_q + self.reward_scale * reward)
 
@@ -113,16 +132,19 @@ class SAC(object):
             a tensor shaped [batch_size, obs_size] containing observations
         """
 
+        # calculate the training labels for teh q functions
         bellman_targets = self.bellman_targets(reward, done, next_obs)
-        for n, (q, optim) in enumerate(
-                zip(self.q_functions, self.q_optimizers)):
+        for qf, qf_optim in zip(self.qfs, self.qfs_optim):
             with tf.GradientTape() as tape:
-                q_values = q([obs, act])
-                q_loss = tf.keras.losses.logcosh(
-                    y_true=bellman_targets, y_pred=q_values)
+
+                # calculate the supervised loss for the q functions
+                q_values = qf(tf.concat([obs, act], 1))
+                q_loss = tf.keras.losses.logcosh(bellman_targets, q_values)
                 q_loss = tf.reduce_mean(q_loss)
-            optim.apply_gradients(zip(tape.gradient(
-                q_loss, q.trainable_variables), q.trainable_variables))
+
+            # perform a step of gradient descent on the q function
+            qf_optim.apply_gradients(zip(tape.gradient(
+                q_loss, qf.trainable_variables), qf.trainable_variables))
 
     @tf.function
     def update_policy(self, obs):
@@ -136,14 +158,23 @@ class SAC(object):
         """
 
         with tf.GradientTape() as tape:
-            act, log_pis = self.policy.sample([obs], return_log_probs=True)
-            q_log_targets = tuple(q([obs, act]) for q in self.q_functions)
+            # sample new actions using the current policy
+            distribution = self.policy(obs)
+            act = distribution.sample()
+            log_pis = distribution.log_prob(act)[:, tf.newaxis]
+
+            # compute the q values for the current policy
+            q_log_targets = [qf(tf.concat([obs, act], 1)) for qf in self.qfs]
             q_log_targets = tf.reduce_min(q_log_targets, axis=0)
+
+            # form the soft actor critic policy loss
             policy_loss = self.alpha * log_pis - q_log_targets
             policy_loss = tf.reduce_mean(policy_loss)
+
+        # perform a step of gradient ascent on the policy
         policy_gradients = tape.gradient(
             policy_loss, self.policy.trainable_variables)
-        self.policy_optimizer.apply_gradients(zip(
+        self.policy_optim.apply_gradients(zip(
             policy_gradients, self.policy.trainable_variables))
 
     @tf.function
@@ -157,12 +188,18 @@ class SAC(object):
             a tensor shaped [batch_size, obs_size] containing observations
         """
 
-        act, log_pis = self.policy.sample([obs], return_log_probs=True)
+        # sample new actions using the current policy
+        distribution = self.policy(obs)
+        act = distribution.sample()
+        log_pis = distribution.log_prob(act)[:, tf.newaxis]
+
+        # calculate the surrogate lagrangian loss for alpha
         with tf.GradientTape() as tape:
-            alpha_loss = -self.alpha * tf.stop_gradient(
-                log_pis + tf.reshape(self.target_entropy, [1, 1]))
-            alpha_loss = tf.reduce_mean(alpha_loss)
-        self.alpha_optimizer.apply_gradients(zip(
+            alpha_loss = -self.alpha * tf.reduce_mean(
+                log_pis + tf.reshape(self.constraint, [1, 1]))
+
+        # update the lagrange multiplier using gradient descent
+        self.alpha_optim.apply_gradients(zip(
             tape.gradient(alpha_loss, [self.log_alpha]), [self.log_alpha]))
 
     @tf.function
@@ -186,9 +223,12 @@ class SAC(object):
             a tensor shaped [batch_size, obs_size] containing observations
         """
 
+        # train the q functions policy and alpha every iteration
         self.update_q(obs, act, reward, done, next_obs)
         self.update_policy(obs)
         self.update_alpha(obs)
+
+        # update the target networks after a delay
         if i % self.target_delay == 0:
             self.update_target(tau=self.target_tau)
 
@@ -218,39 +258,31 @@ class SAC(object):
             a dict containing tensors whose statistics will be summarized
         """
 
-        _act, _pis = self.policy.sample([obs], return_log_probs=True)
-        diagnostics = {
-            "act": _act, "log_pis": _pis,
-            "alpha": self.alpha, "done": tf.cast(done, tf.float32),
-            "policy_loss": self.alpha * _pis - tf.reduce_min(
-                tuple(q([obs, _act]) for q in self.q_functions), axis=0),
-            "bellman_targets": self.bellman_targets(reward, done, next_obs),
-            "alpha_loss": -self.alpha * tf.stop_gradient(
-                _pis + tf.reshape(self.target_entropy, [1, 1]))}
-        for n, (q, optim) in enumerate(
-                zip(self.q_functions, self.q_optimizers)):
-            diagnostics[f"q_values_{n}"] = q([obs, act])
-            diagnostics[f"q_loss_{n}"] = tf.keras.losses.logcosh(
-                diagnostics["bellman_targets"], diagnostics[f"q_values_{n}"])
+        # log the labels for the q function
+        diagnostics = dict()
+        diagnostics["sac/done"] = tf.cast(done, tf.float32)
+        diagnostics["sac/bellman_targets"] = \
+            self.bellman_targets(reward, done, next_obs)
+
+        # log metrics for q function convergence
+        for n, qf in enumerate(self.qfs):
+            diagnostics[f"sac/q_values_{n}"] = qf(tf.concat([obs, act], 1))
+            diagnostics[f"sac/q_loss_{n}"] = tf.keras.losses.logcosh(
+                diagnostics["sac/bellman_targets"],
+                diagnostics[f"sac/q_values_{n}"])
+
+        # log metrics for tracking policy convergence
+        d = self.policy(obs)
+        act = d.sample()
+        log_pis = d.log_prob(act)[:, tf.newaxis]
+        diagnostics["sac/act"] = act
+        diagnostics["sac/log_pis"] = log_pis
+        diagnostics["sac/policy_loss"] = self.alpha * log_pis - \
+            tf.reduce_min([qf(tf.concat([obs, act], 1))
+                           for qf in self.qfs], axis=0)
+
+        # log metrics for tracking the lagrange multiplier
+        diagnostics["sac/alpha"] = self.alpha
+        diagnostics["sac/alpha_loss"] = -self.alpha * (
+            log_pis + tf.reshape(self.constraint, [1, 1]))
         return diagnostics
-
-    def get_saveables(self):
-        """Collects and returns stateful objects that are serializeable
-        using the tensorflow checkpoint format
-
-        Returns:
-
-        saveables: dict
-            a dict containing stateful objects compatible with checkpoints
-        """
-
-        saveables = {"log_alpha": self.log_alpha,
-                     "log_alpha_optim": self.alpha_optimizer,
-                     "policy": self.policy,
-                     "policy_optim": self.policy_optimizer}
-        for n, (q, optim) in enumerate(
-                zip(self.q_functions, self.q_optimizers)):
-            saveables[f"q_{n}"] = q
-            saveables[f"q_optim_{n}"] = optim
-            saveables[f"target_q_{n}"] = self.target_q_functions[n]
-        return saveables

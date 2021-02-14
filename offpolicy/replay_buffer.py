@@ -3,22 +3,17 @@ import tensorflow as tf
 
 class ReplayBuffer(tf.Module):
 
-    def __init__(self,
-                 capacity,
-                 obs_size,
-                 act_size):
+    def __init__(self, capacity: int, obs_size: int, act_size: int):
         """A static graph replay buffer that stores samples collected
         from a policy in an environment
 
         Args:
 
-        capacity: tf.dtypes.int32
+        capacity: int
             the number of samples that can be in the buffer, maximum
-        obs_size: tf.dtypes.int32
+        obs_size: int
             the number of channels in the observation space, flattened
-        ctx_size: tf.dtypes.int32
-            the number of channels in the context space, flattened
-        act_size: tf.dtypes.int32
+        act_size: int
             the number of channels in the action space, flattened
         """
 
@@ -40,14 +35,16 @@ class ReplayBuffer(tf.Module):
         # save size statistics for the buffer
         self.head = tf.Variable(tf.constant(0))
         self.size = tf.Variable(tf.constant(0))
-        self.step = tf.Variable(tf.constant(0))
+        self.step = tf.Variable(tf.constant(-1))
+
+        # variables that will be used frequently during training
+        self.obs_range = tf.reshape(
+            tf.range(self.obs_size), [self.obs_size, 1])
+        self.act_range = tf.reshape(
+            tf.range(self.act_size), [self.act_size, 1])
 
     @tf.function
-    def insert(self,
-               obs,
-               act,
-               reward,
-               done):
+    def insert(self, obs, act, reward, done):
         """Insert a single sample collected from the environment into
         the replay buffer at the current head position
 
@@ -64,30 +61,26 @@ class ReplayBuffer(tf.Module):
         """
 
         # insert samples at the position of the current head
-        location = tf.concat([
-            tf.tile(tf.reshape(self.head, [1, 1]), [self.obs_size, 1]),
-            tf.reshape(tf.range(self.obs_size), [self.obs_size, 1])], 1)
+        location = tf.concat([tf.tile(tf.reshape(
+            self.head, [1, 1]), [self.obs_size, 1]), self.obs_range], 1)
         self.obs.assign(tf.tensor_scatter_nd_update(
-            self.obs, location, tf.cast(obs, tf.dtypes.float32)))
+            self.obs, location, tf.cast(obs, tf.float32)))
 
         # insert samples at the position of the current head
-        location = tf.concat([
-            tf.tile(tf.reshape(self.head, [1, 1]), [self.act_size, 1]),
-            tf.reshape(tf.range(self.act_size), [self.act_size, 1])], 1)
+        location = tf.concat([tf.tile(tf.reshape(
+            self.head, [1, 1]), [self.act_size, 1]), self.act_range], 1)
         self.act.assign(tf.tensor_scatter_nd_update(
-            self.act, location, tf.cast(act, tf.dtypes.float32)))
+            self.act, location, tf.cast(act, tf.float32)))
 
         # insert samples at the position of the current head
         location = tf.pad(tf.reshape(self.head, [1, 1]), [[0, 0], [0, 1]])
         self.reward.assign(tf.tensor_scatter_nd_update(
-            self.reward, location,
-            tf.cast(tf.reshape(reward, [1]), tf.dtypes.float32)))
+            self.reward, location, tf.cast(reward, tf.float32)))
 
         # insert samples at the position of the current head
         location = tf.pad(tf.reshape(self.head, [1, 1]), [[0, 0], [0, 1]])
         self.done.assign(tf.tensor_scatter_nd_update(
-            self.done, location,
-            tf.cast(tf.reshape(done, [1]), tf.dtypes.bool)))
+            self.done, location, tf.cast(done, tf.bool)))
 
         # increment the size statistics of the buffer
         self.head.assign(tf.math.floormod(self.head + 1, self.capacity))
@@ -95,8 +88,7 @@ class ReplayBuffer(tf.Module):
         self.step.assign(self.step + 1)
 
     @tf.function
-    def sample(self,
-               batch_size):
+    def sample(self, batch_size):
         """Samples a batch of training data from the replay buffer
         and returns the batch of data
 

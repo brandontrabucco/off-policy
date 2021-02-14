@@ -18,6 +18,5 @@ setup(
         'pandas',
         'matplotlib',
         'seaborn',
-        'click'],
-    entry_points={
-        'console_scripts': ('offpolicy=offpolicy.cli:cli',)})
+        'click',
+        'dm-tree'])
