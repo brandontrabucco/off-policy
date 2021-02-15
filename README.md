@@ -69,4 +69,4 @@ python train.py \
 
 ## Efficiency
 
-From my experiments, it takes roughly three hours for the framework to reach three million training steps on the Ant-v2 MuJoCo environment. This number was found by training a single agent on a Titan RTX GPU.
+From my experiments, it takes roughly three hours for the framework to reach one million training steps on the Ant-v2 MuJoCo environment. This number was found by training a single agent on a Titan RTX GPU.
