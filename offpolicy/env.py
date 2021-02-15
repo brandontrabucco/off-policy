@@ -188,6 +188,7 @@ class StaticGraphEnv(gym.Env):
             a dict of tensors representing information from the environment
         """
 
+        action = tf.where(tf.math.is_nan(action), tf.zeros_like(action), action)
         with tf.control_dependencies([
                 tf.numpy_function(self.buffered_step, [action], [])]):
             obs, reward, done, *info = tf.numpy_function(

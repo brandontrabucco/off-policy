@@ -260,6 +260,8 @@ class SAC(tf.Module):
 
         # log the labels for the q function
         diagnostics = dict()
+        diagnostics["sac/obs"] = obs
+        diagnostics["sac/reward"] = reward
         diagnostics["sac/done"] = tf.cast(done, tf.float32)
         diagnostics["sac/bellman_targets"] = \
             self.bellman_targets(reward, done, next_obs)

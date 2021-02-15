@@ -41,7 +41,9 @@ class Trainer(object):
         self.batch_size = batch_size
 
         # reset the environment and track the previous observation
-        self.obs = tf.Variable(self.training_env.reset(), dtype=tf.float32)
+        self.obs = tf.Variable(
+            (self.training_env.reset() - self.buffer.obs_shift) /
+            self.buffer.obs_scale, dtype=tf.float32)
 
     @tf.function
     def train(self):
@@ -49,13 +51,36 @@ class Trainer(object):
         and running the provided rl algorithm
         """
 
+        if tf.equal(self.buffer.step, self.warm_up_steps):
+            # slice out the collected observations from the buffer
+            obs_slice = self.buffer.obs[:self.warm_up_steps + 1]
+
+            # compute the observation statistics from the buffer
+            shift = tf.reduce_mean(obs_slice, 0)
+            self.buffer.obs_shift.assign(shift)
+
+            # assign normalization parameters of the environments
+            scale = tf.math.reduce_std(obs_slice - shift[tf.newaxis, :], 0)
+            scale = tf.clip_by_value(scale, 1e-6, 1e9) * 10.0
+            self.buffer.obs_scale.assign(scale)
+
+            # rescale the current observation from the environment
+            self.obs.assign((self.obs - shift) / scale)
+
+            # rescale the observations in the buffer
+            obs_slice = (obs_slice - shift) / scale
+            self.buffer.obs.assign(tf.pad(obs_slice, [[
+                0, self.buffer.capacity - self.warm_up_steps - 1], [0, 0]]))
+
         if tf.greater_equal(self.buffer.step, self.warm_up_steps):
-            # sample actions from the current policy
+            # train the policy using an off policy algorithm
             self.algorithm.train(*self.buffer.sample(self.batch_size))
+
+            # sample actions from the current policy
             act = self.policy(self.obs[tf.newaxis]).sample()[0]
 
         else:
-            # sample actions from the action space randomly
+            # sample actions randomly
             act = self.training_env.action_space.sample()
 
         # step the environment by taking an action
@@ -69,7 +94,8 @@ class Trainer(object):
             next_obs = self.training_env.reset()
 
         # prepare the observation for the next iteration
-        self.obs.assign(next_obs)
+        self.obs.assign((next_obs - self.buffer.obs_shift) /
+                        self.buffer.obs_scale)
 
     @tf.function
     def evaluate(self, num_paths):
@@ -103,6 +129,7 @@ class Trainer(object):
             # run the episode until termination
             while tf.logical_not(done):
                 # take the mean action of the policy
+                obs = (obs - self.buffer.obs_shift) / self.buffer.obs_scale
                 act = self.policy(obs[tf.newaxis]).mean()[0]
 
                 # step the environment by taking an action

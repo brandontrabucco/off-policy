@@ -43,7 +43,7 @@ def make_policy(obs_size, act_size, low, high, hidden_size=256):
                 loc=mean, scale_diag=tf.math.softplus(logstd)), bijector)
 
     # build the neural network
-    initializer = tf.keras.initializers.he_uniform()
+    initializer = tf.keras.initializers.GlorotUniform()
     return tf.keras.Sequential([
         tf.keras.layers.Dense(hidden_size,
                               input_shape=(obs_size,),
@@ -77,7 +77,7 @@ def make_qf(obs_size, act_size, hidden_size=256):
     """
 
     # build the neural network
-    initializer = tf.keras.initializers.he_uniform()
+    initializer = tf.keras.initializers.GlorotUniform()
     return tf.keras.Sequential([
         tf.keras.layers.Dense(hidden_size,
                               input_shape=(obs_size + act_size,),

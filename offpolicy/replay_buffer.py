@@ -43,6 +43,12 @@ class ReplayBuffer(tf.Module):
         self.act_range = tf.reshape(
             tf.range(self.act_size), [self.act_size, 1])
 
+        # set the initial normalizer values
+        self.obs_shift = tf.Variable(
+            tf.zeros([obs_size], tf.float32))
+        self.obs_scale = tf.Variable(
+            tf.ones([obs_size], tf.float32))
+
     @tf.function
     def insert(self, obs, act, reward, done):
         """Insert a single sample collected from the environment into

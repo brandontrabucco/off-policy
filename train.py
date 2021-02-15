@@ -6,9 +6,9 @@ import click
 
 
 @click.command()
-@click.option('--logging-dir', type=str, default='cheetah-1')
-@click.option('--eval-env', type=str, default='HalfCheetah-v2')
-@click.option('--training-env', type=str, default='HalfCheetah-v2')
+@click.option('--logging-dir', type=str, default='humanoid')
+@click.option('--eval-env', type=str, default='Humanoid-v2')
+@click.option('--training-env', type=str, default='Humanoid-v2')
 @click.option('--cpus', type=int, default=4)
 @click.option('--gpus', type=int, default=1)
 @click.option('--num-parallel', type=int, default=1)
