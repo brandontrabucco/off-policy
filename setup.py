@@ -14,7 +14,7 @@ setup(
         'tensorflow==2.2',
         'tensorflow-probability',
         'gym[mujoco]',
-        'numpy',
+        'ray[tune]',
         'pandas',
         'matplotlib',
         'seaborn',
