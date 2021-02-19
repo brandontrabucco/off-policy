@@ -38,6 +38,7 @@ def make_policy(obs_size, act_size, low, high, hidden_size=256):
     # define a function that creates a probability distribution
     def create_d(x):
         mean, logstd = tf.split(x, 2, axis=-1)
+        logstd = tf.clip_by_value(logstd, -6.0, 6.0)
         return tfp.distributions.TransformedDistribution(
             tfp.distributions.MultivariateNormalDiag(
                 loc=mean, scale_diag=tf.math.softplus(logstd)), bijector)
@@ -136,6 +137,11 @@ def soft_actor_critic(config):
             the number of steps to use a random uniform exploration policy
         batch_size: int
             the number of samples per training batch
+        normalizer_scale: float
+            multiplied onto std of observations during normalization
+        normalizer_range: float
+            range of normalized observations to clip values to stay within
+
         training_iterations: int
             the number of total training iterations in this session
         eval_interval: int
@@ -171,6 +177,10 @@ def soft_actor_critic(config):
     episodes_per_eval = config["episodes_per_eval"]
     warm_up_steps = config["warm_up_steps"]
     batch_size = config["batch_size"]
+    normalizer_scale = config["normalizer_scale"]
+    normalizer_range = config["normalizer_range"]
+
+    # hyper parameters for the training loop
     training_iterations = config["training_iterations"]
     eval_interval = config["eval_interval"]
 
@@ -206,8 +216,9 @@ def soft_actor_critic(config):
     # create an off policy training manager
     trainer = Trainer(
         training_env, eval_env, policy, buffer, algorithm,
-        episodes_per_eval=episodes_per_eval,
-        warm_up_steps=warm_up_steps, batch_size=batch_size)
+        episodes_per_eval=episodes_per_eval, warm_up_steps=warm_up_steps,
+        batch_size=batch_size, normalizer_scale=normalizer_scale,
+        normalizer_range=normalizer_range)
 
     # create a checkpoint manager for saving the replay buffer
     buffer_checkpoint = tf.train.CheckpointManager(

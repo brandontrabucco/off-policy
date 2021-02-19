@@ -4,7 +4,8 @@ import tensorflow as tf
 class Trainer(object):
 
     def __init__(self, training_env, eval_env, policy, buffer, sac,
-                 episodes_per_eval=10, warm_up_steps=5000, batch_size=256):
+                 episodes_per_eval=10, warm_up_steps=5000, batch_size=256,
+                 normalizer_scale=10.0, normalizer_range=10.0):
         """Create a training interface for an rl agent using
         the provided rl algorithm
 
@@ -25,7 +26,11 @@ class Trainer(object):
         warm_up_steps: int
             the minimum number of steps to collect before training the policy
         batch_size: int
-            the number of samples in a training batch
+            the number of samples per batch to use when training the policy
+        normalizer_scale: float
+            multiplied onto std of observations during normalization
+        normalizer_range: float
+            range of normalized observations to clip values to stay within
         """
 
         # create the training machinery for an off policy algorithm
@@ -40,10 +45,52 @@ class Trainer(object):
         self.warm_up_steps = warm_up_steps
         self.batch_size = batch_size
 
+        # set hyper parameters for normalization
+        self.norm_scale = normalizer_scale
+        self.norm_range = normalizer_range
+
         # reset the environment and track the previous observation
-        self.obs = tf.Variable(
-            (self.training_env.reset() - self.buffer.obs_shift) /
-            self.buffer.obs_scale, dtype=tf.float32)
+        self.obs = tf.Variable(self.process_obs(
+            self.training_env.reset()), dtype=tf.float32)
+
+    @tf.function
+    def process_obs(self, obs, batched=False):
+        """Process observations by normalizing them using statistics
+        calculated from the replay buffer and filtering for outliers
+
+        Args:
+
+        obs: tf.Tensor
+            an input tensor of observations from the environment
+
+        Returns:
+
+        normalized_obs: tf.Tensor
+            a normalized input tensor of observations
+        """
+
+        # check if enough observations have been collected
+        active = tf.greater_equal(self.buffer.step, self.warm_up_steps)
+
+        if batched and active:
+            # normalize the observations with a mean and variance
+            obs = obs - self.buffer.obs_shift[tf.newaxis, :]
+            obs = obs / self.buffer.obs_scale[tf.newaxis, :]
+
+            # clip the observations to remove outliers
+            return tf.clip_by_value(obs, -self.norm_range, self.norm_range)
+
+        elif active:
+            # normalize the observations with a mean and variance
+            obs = obs - self.buffer.obs_shift
+            obs = obs / self.buffer.obs_scale
+
+            # clip the observations to remove outliers
+            return tf.clip_by_value(obs, -self.norm_range, self.norm_range)
+
+        else:
+            # normalization is not active yet
+            return obs
 
     @tf.function
     def train(self):
@@ -61,14 +108,14 @@ class Trainer(object):
 
             # assign normalization parameters of the environments
             scale = tf.math.reduce_std(obs_slice - shift[tf.newaxis, :], 0)
-            scale = tf.clip_by_value(scale, 1e-6, 1e9) * 10.0
+            scale = tf.clip_by_value(scale, 1e-6, 1e9) * self.norm_scale
             self.buffer.obs_scale.assign(scale)
 
             # rescale the current observation from the environment
-            self.obs.assign((self.obs - shift) / scale)
+            self.obs.assign(self.process_obs(self.obs))
 
             # rescale the observations in the buffer
-            obs_slice = (obs_slice - shift) / scale
+            obs_slice = self.process_obs(obs_slice, batched=True)
             self.buffer.obs.assign(tf.pad(obs_slice, [[
                 0, self.buffer.capacity - self.warm_up_steps - 1], [0, 0]]))
 
@@ -94,8 +141,7 @@ class Trainer(object):
             next_obs = self.training_env.reset()
 
         # prepare the observation for the next iteration
-        self.obs.assign((next_obs - self.buffer.obs_shift) /
-                        self.buffer.obs_scale)
+        self.obs.assign(self.process_obs(next_obs))
 
     @tf.function
     def evaluate(self, num_paths):
@@ -129,7 +175,7 @@ class Trainer(object):
             # run the episode until termination
             while tf.logical_not(done):
                 # take the mean action of the policy
-                obs = (obs - self.buffer.obs_shift) / self.buffer.obs_scale
+                obs = self.process_obs(obs)
                 act = self.policy(obs[tf.newaxis]).mean()[0]
 
                 # step the environment by taking an action
