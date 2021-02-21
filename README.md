@@ -48,8 +48,8 @@ config = dict(logging_dir="cheetah",
               episodes_per_eval=10,
               warm_up_steps=5000,
               batch_size=256,
-              normalizer_scale=10.0,
-              normalizer_range=10.0,
+              variance_scaling=10.0,
+              clip_range=2.0,
               training_iterations=5000000,
               eval_interval=10000)
               
