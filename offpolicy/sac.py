@@ -47,23 +47,21 @@ class SAC(tf.Module):
 
         # create training machinery for the policy
         self.policy = policy
-        self.policy_optim = \
-            tf.keras.optimizers.Adam(lr=policy_lr, name="policy_optimizer")
+        self.policy_optim = tf.keras.optimizers.Adam(
+            lr=policy_lr, name="policy_optimizer")
 
         # create training machinery for alpha
         self.log_alpha = tf.Variable(-2.30258509299)
         self.alpha = tfp.util.DeferredTensor(self.log_alpha, tf.exp)
-        self.alpha_optim = \
-            tf.keras.optimizers.Adam(lr=alpha_lr, name='alpha_optimizer')
+        self.alpha_optim = tf.keras.optimizers.Adam(lr=alpha_lr,
+                                                    name="alpha_optimizer")
 
         # create training machinery for the q functions
         self.qfs = qfs
         self.target_qfs = target_qfs
+        self.update_target(tf.constant(1.0))
         self.qfs_optim = tuple(tf.keras.optimizers.Adam(
             lr=qf_lr, name=f'qf{i}_optim') for i, q in enumerate(self.qfs))
-
-        # reset the target networks at the beginning of training
-        self.update_target(tf.constant(1.0))
 
     @tf.function
     def update_target(self, tau):

@@ -137,9 +137,9 @@ def soft_actor_critic(config):
             the number of steps to use a random uniform exploration policy
         batch_size: int
             the number of samples per training batch
-        normalizer_scale: float
+        variance_scaling: float
             multiplied onto std of observations during normalization
-        normalizer_range: float
+        clip_range: float
             range of normalized observations to clip values to stay within
 
         training_iterations: int
@@ -177,8 +177,8 @@ def soft_actor_critic(config):
     episodes_per_eval = config["episodes_per_eval"]
     warm_up_steps = config["warm_up_steps"]
     batch_size = config["batch_size"]
-    normalizer_scale = config["normalizer_scale"]
-    normalizer_range = config["normalizer_range"]
+    variance_scaling = config["variance_scaling"]
+    clip_range = config["clip_range"]
 
     # hyper parameters for the training loop
     training_iterations = config["training_iterations"]
@@ -216,9 +216,9 @@ def soft_actor_critic(config):
     # create an off policy training manager
     trainer = Trainer(
         training_env, eval_env, policy, buffer, algorithm,
-        episodes_per_eval=episodes_per_eval, warm_up_steps=warm_up_steps,
-        batch_size=batch_size, normalizer_scale=normalizer_scale,
-        normalizer_range=normalizer_range)
+        episodes_per_eval=episodes_per_eval,
+        warm_up_steps=warm_up_steps, batch_size=batch_size,
+        variance_scaling=variance_scaling, clip_range=clip_range)
 
     # create a checkpoint manager for saving the replay buffer
     buffer_checkpoint = tf.train.CheckpointManager(
