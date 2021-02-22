@@ -6,15 +6,12 @@ import click
 
 
 @click.command()
-@click.option('--logging-dir', type=str, default='cheetah')
-@click.option('--eval-env', type=str, default='HalfCheetah-v2')
-@click.option('--training-env', type=str, default='HalfCheetah-v2')
+@click.option('--logging-dir', type=str, default='humanoid')
 @click.option('--cpus', type=int, default=4)
 @click.option('--gpus', type=int, default=1)
 @click.option('--num-parallel', type=int, default=1)
 @click.option('--num-samples', type=int, default=1)
-def tune_hyper_parameters(logging_dir, eval_env, training_env,
-                          cpus, gpus, num_parallel, num_samples):
+def tune_hyper_parameters(logging_dir, cpus, gpus, num_parallel, num_samples):
     """Train a reinforcement learning agent using an off-policy
     reinforcement learning algorithm
 
@@ -22,10 +19,6 @@ def tune_hyper_parameters(logging_dir, eval_env, training_env,
 
     logging_dir: str
         the directory where checkpoints are periodically saved
-    eval_env: str
-        the string passed to gym.make to create the eval environment
-    training_env: str
-        the string passed to gym.make to create the train environment
     cpus: int
         the total number of cpu cores allocated to this session
     gpus: int
@@ -38,8 +31,8 @@ def tune_hyper_parameters(logging_dir, eval_env, training_env,
 
     # hyper parameters for the experimental trial
     config = dict(logging_dir="data",
-                  eval_env=eval_env,
-                  training_env=training_env,
+                  eval_env="Humanoid-v2",
+                  training_env="Humanoid-v2",
                   buffer_capacity=1000000,
                   hidden_size=256,
                   policy_lr=3e-4,
@@ -53,8 +46,8 @@ def tune_hyper_parameters(logging_dir, eval_env, training_env,
                   episodes_per_eval=10,
                   warm_up_steps=5000,
                   batch_size=256,
-                  variance_scaling=1.0,
-                  clip_range=None,
+                  variance_scaling=10.0,
+                  clip_range=2.0,
                   training_iterations=5000000,
                   eval_interval=10000)
 
